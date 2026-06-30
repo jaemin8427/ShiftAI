@@ -269,64 +269,153 @@
                          Padding="12,12,12,16"
                          Panel.ZIndex="5"/>
 
-                <Grid x:Name="FaceCoreV2" Width="430" Height="430" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0" Panel.ZIndex="4" IsHitTestVisible="False" RenderTransformOrigin=".5,.5">
+                <Grid x:Name="FaceCoreV2" Width="460" Height="500" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-10,0,0" Panel.ZIndex="4" IsHitTestVisible="False" RenderTransformOrigin=".5,.5">
                     <Grid.RenderTransform>
                         <ScaleTransform x:Name="FaceScaleV2" ScaleX="1" ScaleY="1"/>
                     </Grid.RenderTransform>
                     <Grid.Triggers>
                         <EventTrigger RoutedEvent="Loaded">
                             <BeginStoryboard>
-                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                    <DoubleAnimation Storyboard.TargetName="FaceScaleV2" Storyboard.TargetProperty="ScaleX" To="1.018" Duration="0:0:1.8"/>
-                                    <DoubleAnimation Storyboard.TargetName="FaceScaleV2" Storyboard.TargetProperty="ScaleY" To="1.018" Duration="0:0:1.8"/>
+                                <Storyboard RepeatBehavior="Forever">
+                                    <DoubleAnimation Storyboard.TargetName="FaceScaleV2" Storyboard.TargetProperty="ScaleX" From="1" To="1.012" Duration="0:0:1.6" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="FaceScaleV2" Storyboard.TargetProperty="ScaleY" From="1" To="1.012" Duration="0:0:1.6" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="AntennaPulseScale" Storyboard.TargetProperty="ScaleX" From="1" To="1.34" Duration="0:0:.9" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="AntennaPulseScale" Storyboard.TargetProperty="ScaleY" From="1" To="1.34" Duration="0:0:.9" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="OuterFrameScale" Storyboard.TargetProperty="ScaleX" From="1" To="1.035" Duration="0:0:1.6" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="OuterFrameScale" Storyboard.TargetProperty="ScaleY" From="1" To="1.035" Duration="0:0:1.6" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="CrtBody" Storyboard.TargetProperty="Opacity" From=".98" To=".84" Duration="0:0:.12" BeginTime="0:0:.35" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScanlineShift" Storyboard.TargetProperty="Y" From="-8" To="12" Duration="0:0:.6"/>
+                                    <DoubleAnimation Storyboard.TargetName="WaveScale" Storyboard.TargetProperty="ScaleY" From=".74" To="1.35" Duration="0:0:.42" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="WaveGlow" Storyboard.TargetProperty="Opacity" From=".55" To="1" Duration="0:0:.7" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="StatusDot" Storyboard.TargetProperty="Opacity" From=".42" To="1" Duration="0:0:.7" AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="CursorBlink" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:.5" AutoReverse="True"/>
                                 </Storyboard>
                             </BeginStoryboard>
                         </EventTrigger>
                     </Grid.Triggers>
                     <Grid.Effect>
-                        <DropShadowEffect Color="#22F0FF" BlurRadius="34" ShadowDepth="0" Opacity=".36"/>
+                        <DropShadowEffect Color="#22F0FF" BlurRadius="32" ShadowDepth="0" Opacity=".32"/>
                     </Grid.Effect>
 
-                    <Border Width="430" Height="430" Background="#B008101A" BorderBrush="#4422F0FF" BorderThickness="1" CornerRadius="26">
-                        <Grid ClipToBounds="True">
-                            <Rectangle Fill="{StaticResource WallGridBrush}" Opacity=".18"/>
-                            <Rectangle Fill="{StaticResource ScanlineBrush}" Opacity=".55"/>
-                            <Border Margin="12" BorderBrush="#5522F0FF" BorderThickness="1" CornerRadius="20"/>
-                            <TextBlock Text="● REC" Foreground="#AAFF3EC8" FontSize="9" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24,18,0,0"/>
-                            <TextBlock Text="INPUT · MIC_01" Foreground="{StaticResource DimBrush}" FontSize="8" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24,34,0,0"/>
-                            <TextBlock Text="LV -51.4 dB" Foreground="{StaticResource GreenBrush}" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,24,0"/>
-                            <TextBlock Text="AGENT · ONLINE" Foreground="{StaticResource DimBrush}" FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,34,24,0"/>
-
-                            <Ellipse Width="316" Height="316" Stroke="#AA22F0FF" StrokeThickness="2" Fill="#220B2632" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Ellipse Width="232" Height="232" Stroke="{StaticResource CyanBrush}" StrokeThickness="3" Fill="#2209141F" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top">
+                            <Ellipse Width="14" Height="14" Fill="{StaticResource MagentaBrush}" RenderTransformOrigin=".5,.5">
+                                <Ellipse.RenderTransform>
+                                    <ScaleTransform x:Name="AntennaPulseScale"/>
+                                </Ellipse.RenderTransform>
                                 <Ellipse.Effect>
-                                    <DropShadowEffect Color="#22F0FF" BlurRadius="18" ShadowDepth="0" Opacity=".65"/>
+                                    <DropShadowEffect Color="#FF3EC8" BlurRadius="18" ShadowDepth="0" Opacity=".85"/>
                                 </Ellipse.Effect>
                             </Ellipse>
-                            <Ellipse Width="182" Height="182" Stroke="#5522F0FF" StrokeThickness="1" Fill="#15101824" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Path Stroke="{StaticResource MagentaBrush}" StrokeThickness="4" Fill="Transparent" Data="M355,221 A145,145 0 0 1 259,365" Stretch="None">
-                                <Path.Effect>
-                                    <DropShadowEffect Color="#FF3EC8" BlurRadius="14" ShadowDepth="0" Opacity=".7"/>
-                                </Path.Effect>
-                            </Path>
-                            <Ellipse Width="9" Height="9" Fill="{StaticResource MagentaBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="92,172,0,0"/>
-                            <Path Stroke="#7722F0FF" StrokeThickness="1.4" Data="M215,56 L215,78 M215,352 L215,374 M56,215 L78,215 M352,215 L374,215"/>
-                            <Path Stroke="{StaticResource CyanBrush}" StrokeThickness="2" Fill="Transparent" Data="M215,40 L204,62 L215,56 L226,62 Z M215,390 L204,368 L215,374 L226,368 Z M40,215 L62,204 L56,215 L62,226 Z M390,215 L368,204 L374,215 L368,226 Z"/>
-                            <Polyline Stroke="{StaticResource CyanBrush}" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                      Points="130,215 136,215 136,210 140,220 144,207 148,223 152,204 156,226 160,204 164,226 168,208 172,222 176,212 180,218 184,210 188,220 192,205 196,225 200,198 204,232 208,190 212,240 216,176 220,254 224,190 228,240 232,198 236,232 240,205 244,225 248,210 252,220 256,212 260,218 264,208 268,222 272,204 276,226 280,204 284,226 288,207 292,223 296,210 300,220 304,215 310,215">
-                                <Polyline.Effect>
-                                    <DropShadowEffect Color="#22F0FF" BlurRadius="10" ShadowDepth="0" Opacity=".9"/>
-                                </Polyline.Effect>
-                            </Polyline>
-                            <Path Stroke="#3341FFB6" StrokeThickness="1" Fill="Transparent" Data="M176,215 L215,176 L254,215 L215,254 Z"/>
-                            <TextBlock Text="60" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="-92,160,0,0"/>
-                            <TextBlock Text="180" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="-46,160,0,0"/>
-                            <TextBlock Text="400" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,160,0,0"/>
-                            <TextBlock Text="1k" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="46,160,0,0"/>
-                            <TextBlock Text="2.8k" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="92,160,0,0"/>
-                            <TextBlock Text="SHIFT // AI   ·   v2.0   ·   LISTENING_CORE" Foreground="{StaticResource DimBrush}" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"/>
+                            <Rectangle Width="3" Height="26">
+                                <Rectangle.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#FF3EC8" Offset="0"/>
+                                        <GradientStop Color="#4DFF3EC8" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Rectangle.Fill>
+                            </Rectangle>
+                        </StackPanel>
+
+                        <Grid Width="438" Height="392" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,38,0,0" RenderTransformOrigin=".5,.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="OuterFrameScale"/>
+                            </Grid.RenderTransform>
+                            <Border BorderBrush="#8022F0FF" BorderThickness="1" CornerRadius="48"/>
                         </Grid>
-                    </Border>
+                        <Border Width="412" Height="366" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,51,0,0"
+                                BorderBrush="#2E22F0FF" BorderThickness="1.5" CornerRadius="42"/>
+
+                        <Border x:Name="CrtBody" Width="384" Height="338" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,65,0,0"
+                                BorderBrush="{StaticResource CyanBrush}" BorderThickness="4" CornerRadius="34" Background="#0A0E1A">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#22F0FF" BlurRadius="42" ShadowDepth="0" Opacity=".30"/>
+                            </Border.Effect>
+                            <Grid>
+                                <Border Width="308" Height="262" CornerRadius="22" Background="#020308" BorderBrush="#7322F0FF" BorderThickness="1.5"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True">
+                                    <Grid ClipToBounds="True">
+                                        <Rectangle Fill="{StaticResource WallGridBrush}" Opacity=".08"/>
+                                        <Rectangle>
+                                            <Rectangle.Fill>
+                                                <RadialGradientBrush Center=".5,-.10" GradientOrigin=".5,-.10" RadiusX="1.2" RadiusY=".65">
+                                                    <GradientStop Color="#1A22F0FF" Offset="0"/>
+                                                    <GradientStop Color="#00000000" Offset=".62"/>
+                                                </RadialGradientBrush>
+                                            </Rectangle.Fill>
+                                        </Rectangle>
+                                        <Rectangle Opacity=".42">
+                                            <Rectangle.RenderTransform>
+                                                <TranslateTransform x:Name="ScanlineShift" Y="-8"/>
+                                            </Rectangle.RenderTransform>
+                                            <Rectangle.Fill>
+                                                <DrawingBrush TileMode="Tile" Viewport="0,0,1,20" ViewportUnits="Absolute">
+                                                    <DrawingBrush.Drawing>
+                                                        <DrawingGroup>
+                                                            <GeometryDrawing Brush="Transparent">
+                                                                <GeometryDrawing.Geometry>
+                                                                    <RectangleGeometry Rect="0,0,1,20"/>
+                                                                </GeometryDrawing.Geometry>
+                                                            </GeometryDrawing>
+                                                            <GeometryDrawing Brush="#1822F0FF">
+                                                                <GeometryDrawing.Geometry>
+                                                                    <RectangleGeometry Rect="0,19,1,1"/>
+                                                                </GeometryDrawing.Geometry>
+                                                            </GeometryDrawing>
+                                                        </DrawingGroup>
+                                                    </DrawingBrush.Drawing>
+                                                </DrawingBrush>
+                                            </Rectangle.Fill>
+                                        </Rectangle>
+                                        <Rectangle Opacity=".75" Fill="{StaticResource ScanlineBrush}"/>
+                                        <Rectangle>
+                                            <Rectangle.Fill>
+                                                <RadialGradientBrush Center=".5,.45" GradientOrigin=".5,.45" RadiusX="1.1" RadiusY="1.1">
+                                                    <GradientStop Color="#00000000" Offset=".55"/>
+                                                    <GradientStop Color="#88000000" Offset="1"/>
+                                                </RadialGradientBrush>
+                                            </Rectangle.Fill>
+                                        </Rectangle>
+                                        <Grid Width="204" Height="82" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin=".5,.5">
+                                            <Grid.RenderTransform>
+                                                <ScaleTransform x:Name="WaveScale" ScaleX="1" ScaleY="1"/>
+                                            </Grid.RenderTransform>
+                                            <Polyline x:Name="WaveGlow" Stroke="{StaticResource CyanBrush}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Points="0,41 7,41 7,35 11,47 15,30 19,52 23,28 27,54 31,28 35,54 39,34 43,48 47,38 51,44 55,36 59,46 63,30 67,52 71,24 75,58 79,18 83,64 87,6 91,76 95,18 99,64 103,24 107,58 111,30 115,52 119,36 123,46 127,38 131,44 135,34 139,48 143,28 147,54 151,28 155,54 159,30 163,52 167,35 171,47 175,41 204,41">
+                                                <Polyline.Effect>
+                                                    <DropShadowEffect Color="#22F0FF" BlurRadius="14" ShadowDepth="0" Opacity=".9"/>
+                                                </Polyline.Effect>
+                                            </Polyline>
+                                        </Grid>
+                                        <Border Width="14" Height="14" BorderBrush="#9922F0FF" BorderThickness="1.5,1.5,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8"/>
+                                        <Border Width="14" Height="14" BorderBrush="#9922F0FF" BorderThickness="0,1.5,1.5,0" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"/>
+                                        <DockPanel VerticalAlignment="Bottom" Margin="14,0,14,12" LastChildFill="False">
+                                            <Ellipse x:Name="StatusDot" Width="7" Height="7" Fill="{StaticResource GreenBrush}" DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Text="SHIFT//AI" Foreground="#9FB4D6" FontSize="11" DockPanel.Dock="Left" Margin="0,0,8,0"/>
+                                            <TextBlock Text="·" Foreground="#777E94B5" FontSize="11" DockPanel.Dock="Left" Margin="0,0,8,0"/>
+                                            <TextBlock Text="LISTENING" Foreground="{StaticResource GreenBrush}" FontSize="11" DockPanel.Dock="Left">
+                                                <TextBlock.Effect>
+                                                    <DropShadowEffect Color="#27FF8B" BlurRadius="8" ShadowDepth="0" Opacity=".6"/>
+                                                </TextBlock.Effect>
+                                            </TextBlock>
+                                            <TextBlock x:Name="CursorBlink" Text="_" Foreground="{StaticResource GreenBrush}" FontSize="11" DockPanel.Dock="Left"/>
+                                        </DockPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Canvas Width="208" Height="80" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,392,0,0">
+                            <Path Data="M74 4 L134 4 L154 52 L54 52 Z" Fill="#0A0E1A" Stroke="{StaticResource CyanBrush}" StrokeThickness="3"/>
+                            <Rectangle Canvas.Left="36" Canvas.Top="50" Width="136" Height="16" RadiusX="8" RadiusY="8" Fill="#0A0E1A" Stroke="{StaticResource CyanBrush}" StrokeThickness="3"/>
+                        </Canvas>
+                        <TextBlock Text="음성 신호 상시 수신 · ALWAYS LISTENING" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12"
+                                   Foreground="#8C22F0FF" FontSize="11" TextAlignment="Center">
+                            <TextBlock.Effect>
+                                <DropShadowEffect Color="#22F0FF" BlurRadius="10" ShadowDepth="0" Opacity=".30"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
+                    </Grid>
                 </Grid>
 
                 <Grid x:Name="FaceCore" Visibility="Collapsed" Width="396" Height="430" HorizontalAlignment="Center" VerticalAlignment="Top" Panel.ZIndex="3" IsHitTestVisible="False" RenderTransformOrigin=".5,.5">
