@@ -1,0 +1,8 @@
+bin/
+obj/
+.vs/
+logs/*
+!logs/.gitkeep
+artifacts/
+data/models/*.bin
+*.user

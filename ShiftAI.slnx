@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ShiftAI.App/ShiftAI.App.csproj" />
+    <Project Path="src/ShiftAI.Core/ShiftAI.Core.csproj" />
+    <Project Path="src/ShiftAI.GetoMock/ShiftAI.GetoMock.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ShiftAI.Tests/ShiftAI.Tests.csproj" />
+  </Folder>
+</Solution>

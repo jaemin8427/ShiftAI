@@ -1,0 +1,503 @@
+<Window x:Class="ShiftAI.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Shift AI" Height="900" Width="1024" MinHeight="760" MinWidth="860"
+        Background="#05060D" WindowStartupLocation="CenterScreen"
+        FontFamily="Consolas"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewKeyUp="Window_PreviewKeyUp">
+    <Window.Resources>
+        <SolidColorBrush x:Key="BgBrush" Color="#05060D"/>
+        <SolidColorBrush x:Key="PanelBrush" Color="#0B1124"/>
+        <SolidColorBrush x:Key="InkBrush" Color="#CFE9FF"/>
+        <SolidColorBrush x:Key="DimBrush" Color="#5F7596"/>
+        <SolidColorBrush x:Key="CyanBrush" Color="#22F0FF"/>
+        <SolidColorBrush x:Key="MagentaBrush" Color="#FF3EC8"/>
+        <SolidColorBrush x:Key="GreenBrush" Color="#27FF8B"/>
+        <SolidColorBrush x:Key="AmberBrush" Color="#FFCE4A"/>
+        <SolidColorBrush x:Key="LineBrush" Color="#2E22F0FF"/>
+
+        <DrawingBrush x:Key="WallGridBrush" TileMode="Tile" Viewport="0,0,44,44" ViewportUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Transparent">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,44,44"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#2E22F0FF">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="0,0,1,44"/>
+                                <RectangleGeometry Rect="0,0,44,1"/>
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <DrawingBrush x:Key="ScanlineBrush" TileMode="Tile" Viewport="0,0,4,4" ViewportUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="Transparent">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,4,4"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#44000000">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,2,4,1"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <Style x:Key="NeonButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource CyanBrush}"/>
+            <Setter Property="Background" Value="#0F22F0FF"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="13,7"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="18"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#22F0FF"/>
+                                <Setter Property="Foreground" Value="#04121A"/>
+                                <Setter Property="BorderBrush" Value="#22F0FF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value=".45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource NeonButton}"/>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="CaretBrush" Value="{StaticResource CyanBrush}"/>
+        </Style>
+
+        <Style TargetType="ListBox">
+            <Setter Property="Foreground" Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+
+        <Style TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource InkBrush}"/>
+            <Setter Property="Padding" Value="0,3"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <TextBlock Text="{Binding}" TextAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{TemplateBinding Foreground}" FontSize="14"
+                                   LineHeight="23" MaxWidth="820"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid ClipToBounds="True">
+        <Grid.Background>
+            <RadialGradientBrush Center="0.70,0.20" GradientOrigin="0.70,0.20" RadiusX="0.90" RadiusY="0.70">
+                <GradientStop Color="#22FF3EC8" Offset="0"/>
+                <GradientStop Color="#0005060D" Offset=".62"/>
+                <GradientStop Color="#05060D" Offset="1"/>
+            </RadialGradientBrush>
+        </Grid.Background>
+
+        <Rectangle Fill="{StaticResource WallGridBrush}" Opacity=".24"/>
+        <Rectangle Opacity=".42" IsHitTestVisible="False">
+            <Rectangle.Fill>
+                <RadialGradientBrush Center=".5,.4" GradientOrigin=".5,.4" RadiusX=".80" RadiusY=".75">
+                    <GradientStop Color="#00000000" Offset=".52"/>
+                    <GradientStop Color="#99000000" Offset="1"/>
+                </RadialGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <!-- Desktop / activation screen -->
+        <Grid x:Name="DesktopScreen" Visibility="Visible">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,46,0,0" Opacity=".72">
+                <TextBlock Text="SHIFT" Foreground="{StaticResource CyanBrush}" FontSize="54" FontWeight="Bold" HorizontalAlignment="Center">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="#22F0FF" BlurRadius="18" ShadowDepth="0" Opacity=".65"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+                <TextBlock Text="GAMING ZONE · SEAT 38" Foreground="{StaticResource DimBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <UniformGrid Columns="1" Rows="4" Width="96" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="40,120,0,0">
+                <Button Content="GAME" Height="68" Click="OpenGameButton_Click"/>
+                <Button Content="VOICE" Height="68" Click="OpenVoiceButton_Click"/>
+                <Button Content="CHAT" Height="68" Click="OpenChatButton_Click"/>
+                <Button Content="PRINT" Height="68" Click="DesktopToastButton_Click"/>
+            </UniformGrid>
+
+            <Border Background="#88020308" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
+                    <Border Width="72" Height="62" Margin="7" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1" CornerRadius="12" Background="#1022F0FF">
+                        <TextBlock Text="SHIFT" Foreground="{StaticResource CyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16"/>
+                    </Border>
+                    <Border Width="72" Height="62" Margin="7" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1" CornerRadius="12" Background="#1022F0FF">
+                        <TextBlock Text="A" Foreground="{StaticResource CyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28"/>
+                    </Border>
+                    <Border Width="72" Height="62" Margin="7" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1" CornerRadius="12" Background="#1022F0FF">
+                        <TextBlock Text="I" Foreground="{StaticResource CyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28"/>
+                    </Border>
+                </StackPanel>
+                <TextBlock Text="SHIFT + A + I 로 Shift AI 호출" Foreground="{StaticResource InkBrush}" FontSize="15" HorizontalAlignment="Center"/>
+                <TextBlock Text="게임 중에는 같은 키로 슬라이드 패널을 엽니다" Foreground="{StaticResource DimBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,18,0,0"/>
+                <Button Content="ENTER SHIFT AI" Click="OpenChatButton_Click" Margin="0,24,0,0" Padding="22,11"/>
+            </StackPanel>
+
+            <DockPanel Height="46" VerticalAlignment="Bottom" Background="#CC050710" LastChildFill="False">
+                <TextBlock Text="SEAT 38" Foreground="{StaticResource CyanBrush}" VerticalAlignment="Center" Margin="16,0"/>
+                <TextBlock Text="AUTO CHARGE READY" Foreground="{StaticResource DimBrush}" VerticalAlignment="Center" Margin="12,0"/>
+                <TextBlock Text="SHIFT AI LOCAL RUNTIME" Foreground="{StaticResource InkBrush}" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="16,0"/>
+            </DockPanel>
+        </Grid>
+
+        <!-- Chat screen -->
+        <Grid x:Name="ChatScreen" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="80"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="194"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Button Content="ESC" Width="62" Height="62" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="22" BorderBrush="{StaticResource MagentaBrush}" Foreground="{StaticResource MagentaBrush}" Click="BackButton_Click"/>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" Opacity=".74" Visibility="Collapsed">
+                    <TextBlock Text="SHIFT" Foreground="{StaticResource CyanBrush}" FontSize="46" FontWeight="Bold" HorizontalAlignment="Center">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="#22F0FF" BlurRadius="18" ShadowDepth="0" Opacity=".65"/>
+                        </TextBlock.Effect>
+                    </TextBlock>
+                    <TextBlock Text="GAMING ZONE · SEAT 38" Foreground="{StaticResource DimBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,20,22,0">
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Text="로봇 페이스" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
+                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Margin="0,6,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="{StaticResource CyanBrush}" Padding="11,7" CornerRadius="7,0,0,7">
+                                    <TextBlock Text="코어" Foreground="#04121A" FontSize="11" FontWeight="Bold"/>
+                                </Border>
+                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
+                                    <TextBlock Text="CRT" Foreground="{StaticResource DimBrush}" FontSize="11"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Text="AI 페르소나" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
+                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Margin="0,6,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="{StaticResource MagentaBrush}" Padding="11,7" CornerRadius="7,0,0,7">
+                                    <TextBlock Text="표준" Foreground="#15030F" FontSize="11" FontWeight="Bold"/>
+                                </Border>
+                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
+                                    <TextBlock Text="게이머" Foreground="{StaticResource DimBrush}" FontSize="11"/>
+                                </Border>
+                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
+                                    <TextBlock Text="집중" Foreground="{StaticResource DimBrush}" FontSize="11"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Text="PERSONA" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
+                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Margin="0,6,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Background="{StaticResource CyanBrush}" Padding="11,7" CornerRadius="7,0,0,7">
+                                    <TextBlock Text="HERMES" Foreground="#04121A" FontSize="11" FontWeight="Bold"/>
+                                </Border>
+                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
+                                    <TextBlock Text="LOCAL" Foreground="{StaticResource DimBrush}" FontSize="11"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel>
+                        <TextBlock Text="STATE" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
+                        <Border x:Name="StatusBadge" Background="#172534" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="14,7" Margin="0,6,0,0">
+                            <TextBlock x:Name="StatusText" Text="idle" Foreground="{StaticResource InkBrush}" FontSize="11" FontWeight="Bold"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <ListBox x:Name="ConversationList"
+                         Height="160"
+                         MaxWidth="940"
+                         Margin="48,0,48,10"
+                         VerticalAlignment="Bottom"
+                         Padding="12,12,12,16"
+                         Panel.ZIndex="5"/>
+
+                <Grid x:Name="FaceCoreV2" Width="430" Height="430" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0" Panel.ZIndex="4" IsHitTestVisible="False" RenderTransformOrigin=".5,.5">
+                    <Grid.RenderTransform>
+                        <ScaleTransform x:Name="FaceScaleV2" ScaleX="1" ScaleY="1"/>
+                    </Grid.RenderTransform>
+                    <Grid.Triggers>
+                        <EventTrigger RoutedEvent="Loaded">
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                    <DoubleAnimation Storyboard.TargetName="FaceScaleV2" Storyboard.TargetProperty="ScaleX" To="1.018" Duration="0:0:1.8"/>
+                                    <DoubleAnimation Storyboard.TargetName="FaceScaleV2" Storyboard.TargetProperty="ScaleY" To="1.018" Duration="0:0:1.8"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </Grid.Triggers>
+                    <Grid.Effect>
+                        <DropShadowEffect Color="#22F0FF" BlurRadius="34" ShadowDepth="0" Opacity=".36"/>
+                    </Grid.Effect>
+
+                    <Border Width="430" Height="430" Background="#B008101A" BorderBrush="#4422F0FF" BorderThickness="1" CornerRadius="26">
+                        <Grid ClipToBounds="True">
+                            <Rectangle Fill="{StaticResource WallGridBrush}" Opacity=".18"/>
+                            <Rectangle Fill="{StaticResource ScanlineBrush}" Opacity=".55"/>
+                            <Border Margin="12" BorderBrush="#5522F0FF" BorderThickness="1" CornerRadius="20"/>
+                            <TextBlock Text="● REC" Foreground="#AAFF3EC8" FontSize="9" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24,18,0,0"/>
+                            <TextBlock Text="INPUT · MIC_01" Foreground="{StaticResource DimBrush}" FontSize="8" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24,34,0,0"/>
+                            <TextBlock Text="LV -51.4 dB" Foreground="{StaticResource GreenBrush}" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,24,0"/>
+                            <TextBlock Text="AGENT · ONLINE" Foreground="{StaticResource DimBrush}" FontSize="8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,34,24,0"/>
+
+                            <Ellipse Width="316" Height="316" Stroke="#AA22F0FF" StrokeThickness="2" Fill="#220B2632" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Ellipse Width="232" Height="232" Stroke="{StaticResource CyanBrush}" StrokeThickness="3" Fill="#2209141F" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="#22F0FF" BlurRadius="18" ShadowDepth="0" Opacity=".65"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <Ellipse Width="182" Height="182" Stroke="#5522F0FF" StrokeThickness="1" Fill="#15101824" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Path Stroke="{StaticResource MagentaBrush}" StrokeThickness="4" Fill="Transparent" Data="M355,221 A145,145 0 0 1 259,365" Stretch="None">
+                                <Path.Effect>
+                                    <DropShadowEffect Color="#FF3EC8" BlurRadius="14" ShadowDepth="0" Opacity=".7"/>
+                                </Path.Effect>
+                            </Path>
+                            <Ellipse Width="9" Height="9" Fill="{StaticResource MagentaBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="92,172,0,0"/>
+                            <Path Stroke="#7722F0FF" StrokeThickness="1.4" Data="M215,56 L215,78 M215,352 L215,374 M56,215 L78,215 M352,215 L374,215"/>
+                            <Path Stroke="{StaticResource CyanBrush}" StrokeThickness="2" Fill="Transparent" Data="M215,40 L204,62 L215,56 L226,62 Z M215,390 L204,368 L215,374 L226,368 Z M40,215 L62,204 L56,215 L62,226 Z M390,215 L368,204 L374,215 L368,226 Z"/>
+                            <Polyline Stroke="{StaticResource CyanBrush}" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Points="130,215 136,215 136,210 140,220 144,207 148,223 152,204 156,226 160,204 164,226 168,208 172,222 176,212 180,218 184,210 188,220 192,205 196,225 200,198 204,232 208,190 212,240 216,176 220,254 224,190 228,240 232,198 236,232 240,205 244,225 248,210 252,220 256,212 260,218 264,208 268,222 272,204 276,226 280,204 284,226 288,207 292,223 296,210 300,220 304,215 310,215">
+                                <Polyline.Effect>
+                                    <DropShadowEffect Color="#22F0FF" BlurRadius="10" ShadowDepth="0" Opacity=".9"/>
+                                </Polyline.Effect>
+                            </Polyline>
+                            <Path Stroke="#3341FFB6" StrokeThickness="1" Fill="Transparent" Data="M176,215 L215,176 L254,215 L215,254 Z"/>
+                            <TextBlock Text="60" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="-92,160,0,0"/>
+                            <TextBlock Text="180" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="-46,160,0,0"/>
+                            <TextBlock Text="400" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,160,0,0"/>
+                            <TextBlock Text="1k" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="46,160,0,0"/>
+                            <TextBlock Text="2.8k" Foreground="#8834FFAC" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="92,160,0,0"/>
+                            <TextBlock Text="SHIFT // AI   ·   v2.0   ·   LISTENING_CORE" Foreground="{StaticResource DimBrush}" FontSize="8" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <Grid x:Name="FaceCore" Visibility="Collapsed" Width="396" Height="430" HorizontalAlignment="Center" VerticalAlignment="Top" Panel.ZIndex="3" IsHitTestVisible="False" RenderTransformOrigin=".5,.5">
+                    <Grid.RenderTransform>
+                        <ScaleTransform x:Name="FaceScale" ScaleX="1" ScaleY="1"/>
+                    </Grid.RenderTransform>
+                    <Grid.Triggers>
+                        <EventTrigger RoutedEvent="Loaded">
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                    <DoubleAnimation Storyboard.TargetName="FaceScale" Storyboard.TargetProperty="ScaleX" To="1.035" Duration="0:0:1.6"/>
+                                    <DoubleAnimation Storyboard.TargetName="FaceScale" Storyboard.TargetProperty="ScaleY" To="1.035" Duration="0:0:1.6"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </Grid.Triggers>
+                    <Grid.Effect>
+                        <DropShadowEffect Color="#22F0FF" BlurRadius="24" ShadowDepth="0" Opacity=".35"/>
+                    </Grid.Effect>
+                    <Ellipse Width="300" Height="300" Fill="#061221" Stroke="{StaticResource CyanBrush}" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity=".92"/>
+                    <Ellipse Width="242" Height="242" Fill="#071A2A" Stroke="#3B22F0FF" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Width="228" Height="96" Background="#03070E" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid>
+                            <Rectangle Fill="{StaticResource ScanlineBrush}" Opacity=".75"/>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="SHIFT AI" Foreground="{StaticResource GreenBrush}" FontSize="18" FontWeight="Bold" TextAlignment="Center">
+                                    <TextBlock.Effect>
+                                        <DropShadowEffect Color="#27FF8B" BlurRadius="12" ShadowDepth="0" Opacity=".8"/>
+                                    </TextBlock.Effect>
+                                </TextBlock>
+                                <TextBlock Text="READY · LISTENING" Foreground="{StaticResource CyanBrush}" FontSize="10" TextAlignment="Center" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Path Fill="Transparent" Stroke="{StaticResource CyanBrush}" StrokeThickness="2" Data="M118,330 C150,382 246,382 278,330"/>
+                    <Ellipse Width="16" Height="16" Fill="{StaticResource MagentaBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="72,0,0,0"/>
+                    <Ellipse Width="16" Height="16" Fill="{StaticResource MagentaBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,72,0"/>
+                </Grid>
+
+                <Border Height="190" VerticalAlignment="Top" Panel.ZIndex="4" IsHitTestVisible="False">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#05060D" Offset="0"/>
+                            <GradientStop Color="#DD05060D" Offset=".45"/>
+                            <GradientStop Color="#0005060D" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="2" Panel.ZIndex="6">
+                <Grid.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#0005060D" Offset="0"/>
+                        <GradientStop Color="#EE05060D" Offset=".34"/>
+                        <GradientStop Color="#05060D" Offset="1"/>
+                    </LinearGradientBrush>
+                </Grid.Background>
+
+                <StackPanel VerticalAlignment="Top" Margin="0,2,0,0">
+                    <WrapPanel x:Name="CandidatePanel" HorizontalAlignment="Center" Margin="12,0,12,2"/>
+                    <WrapPanel x:Name="SampleCommandPanel" HorizontalAlignment="Center" Margin="12,0,12,8"/>
+
+                    <Border Width="860" MaxWidth="860" HorizontalAlignment="Center" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="10" Background="#F203060E" Padding="16,13">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#22F0FF" BlurRadius="30" ShadowDepth="0" Opacity=".16"/>
+                        </Border.Effect>
+                        <DockPanel LastChildFill="True">
+                            <TextBlock Text="SHIFT&gt;" DockPanel.Dock="Left" Foreground="{StaticResource MagentaBrush}" FontSize="15" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <Button x:Name="SendButton" DockPanel.Dock="Right" Content="RUN" Click="SendButton_Click" MinWidth="72" Height="32" Padding="12,4" Margin="10,0,0,0"/>
+                            <TextBox x:Name="CommandInput" KeyDown="CommandInput_KeyDown" VerticalContentAlignment="Center" Height="28"/>
+                        </DockPanel>
+                    </Border>
+
+                    <DockPanel Width="860" HorizontalAlignment="Center" Margin="0,7,0,0">
+                        <TextBlock x:Name="FooterVoiceStatus" Text="VOICE READY · BACKGROUND GETO CONTROL" DockPanel.Dock="Right" Foreground="{StaticResource MagentaBrush}" FontSize="11"/>
+                        <TextBlock Text="ENTER TO RUN · SHIFT AI SEAT AGENT" Foreground="{StaticResource DimBrush}" FontSize="11"/>
+                    </DockPanel>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- Game screen + in-game panel -->
+        <Grid x:Name="GameScreen" Visibility="Collapsed">
+            <Grid.Background>
+                <RadialGradientBrush Center=".5,.35" GradientOrigin=".5,.35" RadiusX=".72" RadiusY=".55">
+                    <GradientStop Color="#2222F0FF" Offset="0"/>
+                    <GradientStop Color="#101826" Offset=".58"/>
+                    <GradientStop Color="#070B13" Offset="1"/>
+                </RadialGradientBrush>
+            </Grid.Background>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="◆" Foreground="#0FB6C9" FontSize="80" HorizontalAlignment="Center">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="#22F0FF" BlurRadius="40" ShadowDepth="0" Opacity=".55"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+                <TextBlock Text="GAME SESSION" Foreground="{StaticResource InkBrush}" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock Text="SHIFT + A + I opens quick order panel" Foreground="{StaticResource DimBrush}" FontSize="12" Margin="0,8,0,0" HorizontalAlignment="Center"/>
+            </StackPanel>
+            <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,18,0,0" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Background="#66000000" Padding="14,7">
+                <TextBlock Text="IN-GAME MODE · FOCUS SAFE" Foreground="{StaticResource DimBrush}" FontSize="12"/>
+            </Border>
+            <Button Content="OPEN PANEL" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,80" Click="OpenGamePanelButton_Click"/>
+            <Button Content="ESC" Width="62" Height="62" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="22" BorderBrush="{StaticResource MagentaBrush}" Foreground="{StaticResource MagentaBrush}" Click="BackButton_Click"/>
+
+            <Border x:Name="GamePanel" Width="380" HorizontalAlignment="Right" Visibility="Collapsed" Background="#EE050812" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="72"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="62"/>
+                    </Grid.RowDefinitions>
+                    <DockPanel Grid.Row="0" Margin="16,0">
+                        <Button Content="×" DockPanel.Dock="Right" Width="40" Height="40" Click="CloseGamePanelButton_Click"/>
+                        <Border Width="38" Height="38" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Background="#02040A" Margin="0,0,10,0">
+                            <TextBlock Text="AI" Foreground="{StaticResource GreenBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="SHIFT AI" Foreground="{StaticResource CyanBrush}" FontSize="14" FontWeight="Bold"/>
+                            <TextBlock Text="quick order while gaming" Foreground="{StaticResource DimBrush}" FontSize="10"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <ListBox x:Name="GameConversationList" Grid.Row="1" Padding="14" FontSize="13"/>
+                    <WrapPanel Grid.Row="2" Margin="12,0,12,8">
+                        <Button Content="콜라 하나" Click="GameQuickCommandButton_Click" CommandParameter="콜라 하나 추가해"/>
+                        <Button Content="라면" Click="GameQuickCommandButton_Click" CommandParameter="라면 시켜줘"/>
+                        <Button Content="직원" Click="GameQuickCommandButton_Click" CommandParameter="직원 불러줘"/>
+                    </WrapPanel>
+                    <Border Grid.Row="3" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="12">
+                        <DockPanel>
+                            <Button Content="RUN" DockPanel.Dock="Right" Width="62" Click="GameSendButton_Click"/>
+                            <TextBox x:Name="GameInput" KeyDown="GameInput_KeyDown" VerticalContentAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Voice mini widget -->
+        <Border x:Name="VoiceWidget" Visibility="Collapsed" Width="340" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,26,64" Background="#EF070A16" BorderBrush="{StaticResource MagentaBrush}" BorderThickness="1" CornerRadius="14" Panel.ZIndex="30">
+            <StackPanel>
+                <DockPanel Height="44" Margin="14,0" LastChildFill="True">
+                    <Ellipse Width="9" Height="9" Fill="{StaticResource MagentaBrush}" VerticalAlignment="Center" Margin="0,0,9,0"/>
+                    <Button Content="×" DockPanel.Dock="Right" Width="34" Height="28" Padding="0" Click="CloseVoiceButton_Click"/>
+                    <TextBlock Text="VOICE MODE" Foreground="{StaticResource InkBrush}" FontSize="12" VerticalAlignment="Center"/>
+                </DockPanel>
+                <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Background="#02040A" Height="64" Margin="14,0">
+                    <Polyline Points="0,34 22,30 44,42 66,18 88,46 110,24 132,38 154,17 176,44 198,30 220,34 242,20 264,40 286,28 312,34"
+                              Stroke="{StaticResource CyanBrush}" StrokeThickness="2" Stretch="Fill" Margin="10"/>
+                </Border>
+                <StackPanel Margin="14,10">
+                    <TextBlock x:Name="VoiceEngineText" Text="STT" Foreground="{StaticResource DimBrush}" FontSize="10"/>
+                    <TextBlock x:Name="VoiceTranscript" Text="버튼을 누르거나 SHIFT+V 후 SPACE를 눌러 말하세요" Foreground="{StaticResource InkBrush}" FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                </StackPanel>
+                <Button x:Name="PttButton" Content="누르는 동안 듣기 (SPACE)" Margin="14,0,14,12" Padding="13" BorderBrush="{StaticResource MagentaBrush}" Foreground="{StaticResource MagentaBrush}" PreviewMouseDown="PttButton_PreviewMouseDown" PreviewMouseUp="PttButton_PreviewMouseUp"/>
+                <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="14,9">
+                    <TextBlock Text="음성 명령은 로컬 STT로 처리하고 실패 시 데모 명령으로 fallback됩니다" Foreground="{StaticResource DimBrush}" FontSize="10"/>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Toast -->
+        <Border x:Name="ToastHost" Visibility="Collapsed" MinWidth="240" MaxWidth="420" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,64" Background="#F0060A16" BorderBrush="{StaticResource GreenBrush}" BorderThickness="1" CornerRadius="10" Padding="12,10" Panel.ZIndex="40">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="ToastIcon" Text="OK" Foreground="{StaticResource GreenBrush}" FontSize="13" FontWeight="Bold" Margin="0,0,10,0"/>
+                <TextBlock x:Name="ToastText" Text="" Foreground="{StaticResource InkBrush}" FontSize="13" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Rectangle Fill="{StaticResource ScanlineBrush}" Opacity=".60" IsHitTestVisible="False" Panel.ZIndex="90"/>
+    </Grid>
+</Window>

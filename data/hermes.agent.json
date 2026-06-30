@@ -1,0 +1,22 @@
+{
+  "agentName": "Hermes Agent",
+  "productName": "Shift AI",
+  "seatNumber": 38,
+  "llmProvider": "Gemini",
+  "model": "gemini-3.5-flash",
+  "locale": "ko-KR",
+  "scope": [
+    "pc_cafe_seat_agent",
+    "food_order_draft",
+    "staff_call_mock",
+    "audio_troubleshooting_mock",
+    "game_launch_mock",
+    "remaining_time_mock"
+  ],
+  "orderingPolicy": [
+    "Never place a food order from an add-food command.",
+    "Ambiguous ramen requests must ask the user to choose one of 라공탄, 라우동, 일반 라면.",
+    "Only 주문해 can place an order, and only when a confirmation is pending.",
+    "All external actions are simulated."
+  ]
+}
