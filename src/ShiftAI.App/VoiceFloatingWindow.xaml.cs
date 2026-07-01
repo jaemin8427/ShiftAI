@@ -1,27 +1,23 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Threading;
+using Microsoft.Web.WebView2.Core;
 
 namespace ShiftAI.App;
 
 public partial class VoiceFloatingWindow : Window
 {
-    private readonly DispatcherTimer _animationTimer;
     private bool _pttDown;
-    private bool _listeningVisual;
-    private double _phase;
+    private bool _webReady;
+    private string _pendingEngineStatus = "STT";
+    private string _pendingTranscript = "대기 중";
 
     public VoiceFloatingWindow()
     {
         InitializeComponent();
-
-        _animationTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(42)
-        };
-        _animationTimer.Tick += (_, _) => AnimateVoiceHud();
-        _animationTimer.Start();
+        Loaded += async (_, _) => await InitializeWebViewAsync();
     }
 
     public event EventHandler? CloseRequested;
@@ -30,26 +26,20 @@ public partial class VoiceFloatingWindow : Window
 
     public void SetReady(string engineStatus)
     {
-        _listeningVisual = false;
-        PttButton.Content = "⌨ 누르고 있는 동안 듣기 (SPACE)";
-        TranscriptText.Text = $"\"듣기 준비됨 · {engineStatus}\"";
-        LiveDot.Fill = new SolidColorBrush(Color.FromRgb(255, 62, 200));
+        _pendingEngineStatus = engineStatus;
+        _pendingTranscript = $"듣기 준비됨 · {engineStatus}";
+        _ = ExecuteVoiceScriptAsync($"window.shiftVoice?.setReady({Json(engineStatus)});");
     }
 
     public void SetListening()
     {
-        _listeningVisual = true;
-        PttButton.Content = "● 듣는 중...";
-        TranscriptText.Text = "...";
-        LiveDot.Fill = new SolidColorBrush(Color.FromRgb(39, 255, 139));
+        _ = ExecuteVoiceScriptAsync("window.shiftVoice?.setListening();");
     }
 
     public void SetTranscript(string text)
     {
-        _listeningVisual = false;
-        PttButton.Content = "⌨ 누르고 있는 동안 듣기 (SPACE)";
-        TranscriptText.Text = $"\"{text}\"";
-        LiveDot.Fill = new SolidColorBrush(Color.FromRgb(255, 62, 200));
+        _pendingTranscript = text;
+        _ = ExecuteVoiceScriptAsync($"window.shiftVoice?.setTranscript({Json(text)});");
     }
 
     public void PositionBottomRight()
@@ -57,6 +47,59 @@ public partial class VoiceFloatingWindow : Window
         var area = SystemParameters.WorkArea;
         Left = area.Right - Width - 22;
         Top = area.Bottom - Height - 58;
+    }
+
+    private async Task InitializeWebViewAsync()
+    {
+        try
+        {
+            await VoiceWebView.EnsureCoreWebView2Async();
+            VoiceWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            VoiceWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            VoiceWebView.CoreWebView2.WebMessageReceived += (_, args) => HandleWebMessage(args);
+            VoiceWebView.NavigationCompleted += async (_, _) =>
+            {
+                _webReady = true;
+                await ExecuteVoiceScriptAsync("window.shiftVoice?.setSeat('PC-38');");
+                await ExecuteVoiceScriptAsync($"window.shiftVoice?.setReady({Json(_pendingEngineStatus)});");
+                if (_pendingTranscript != $"듣기 준비됨 · {_pendingEngineStatus}")
+                {
+                    await ExecuteVoiceScriptAsync($"window.shiftVoice?.setTranscript({Json(_pendingTranscript)});");
+                }
+            };
+
+            var widgetPath = Path.Combine(AppContext.BaseDirectory, "Assets", "voice-widget.html");
+            VoiceWebView.Source = new Uri(widgetPath);
+        }
+        catch
+        {
+            // The caller can still use keyboard shortcuts even if WebView2 is unavailable.
+        }
+    }
+
+    private void HandleWebMessage(CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        using var document = JsonDocument.Parse(args.WebMessageAsJson);
+        if (!document.RootElement.TryGetProperty("type", out var typeElement))
+        {
+            return;
+        }
+
+        switch (typeElement.GetString())
+        {
+            case "ptt-start":
+                StartPtt();
+                break;
+            case "ptt-end":
+                EndPtt();
+                break;
+            case "close":
+                CloseRequested?.Invoke(this, EventArgs.Empty);
+                break;
+            case "drag":
+                TryDragMove();
+                break;
+        }
     }
 
     private void StartPtt()
@@ -67,7 +110,6 @@ public partial class VoiceFloatingWindow : Window
         }
 
         _pttDown = true;
-        _listeningVisual = true;
         PttStarted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -79,54 +121,51 @@ public partial class VoiceFloatingWindow : Window
         }
 
         _pttDown = false;
-        _listeningVisual = false;
         PttEnded?.Invoke(this, EventArgs.Empty);
     }
 
-    private void AnimateVoiceHud()
+    private async Task ExecuteVoiceScriptAsync(string script)
     {
-        _phase += _listeningVisual ? 0.34 : 0.12;
-        var width = Math.Max(318, WaveLine.ActualWidth);
-        var height = 42d;
-        var center = 21d;
-        var amplitude = _listeningVisual ? 15d : 4d;
-        var points = new PointCollection();
-
-        const int count = 28;
-        for (var i = 0; i < count; i++)
+        if (!_webReady || VoiceWebView.CoreWebView2 is null)
         {
-            var x = width * i / (count - 1);
-            var pulse = Math.Sin(_phase + i * 0.72) * 0.58
-                + Math.Sin(_phase * 0.47 + i * 1.31) * 0.26
-                + Math.Sin(_phase * 1.8 + i * 0.19) * 0.16;
-            var envelope = 0.32 + 0.68 * Math.Sin(Math.PI * i / (count - 1));
-            var y = center + pulse * amplitude * envelope;
-            points.Add(new Point(x, Math.Clamp(y, 4, height - 4)));
+            return;
         }
 
-        WaveLine.Points = points;
-        LiveDot.Opacity = 0.55 + 0.45 * Math.Abs(Math.Sin(_phase * 1.4));
-        WaveLine.Opacity = _listeningVisual
-            ? 0.78 + 0.22 * Math.Abs(Math.Sin(_phase * 1.1))
-            : 0.36 + 0.18 * Math.Abs(Math.Sin(_phase * 0.7));
+        try
+        {
+            await VoiceWebView.ExecuteScriptAsync(script);
+        }
+        catch
+        {
+            // Best-effort visual state sync only.
+        }
     }
 
-    private void PttButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private static string Json(string value)
     {
-        StartPtt();
-        e.Handled = true;
+        return JsonSerializer.Serialize(value, new JsonSerializerOptions
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        });
     }
 
-    private void PttButton_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    private void TryDragMove()
     {
-        EndPtt();
-        e.Handled = true;
+        try
+        {
+            DragMove();
+        }
+        catch
+        {
+            // DragMove can throw when the pointer is no longer pressed.
+        }
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Space)
         {
+            _ = ExecuteVoiceScriptAsync("window.shiftVoice?.setListening();");
             StartPtt();
             e.Handled = true;
             return;
@@ -146,19 +185,5 @@ public partial class VoiceFloatingWindow : Window
             EndPtt();
             e.Handled = true;
         }
-    }
-
-    private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ButtonState == MouseButtonState.Pressed)
-        {
-            DragMove();
-        }
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        _animationTimer.Stop();
-        base.OnClosed(e);
     }
 }
