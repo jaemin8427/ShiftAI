@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{
+      --cyan:#22f0ff;
+      --magenta:#ff3ec8;
+      --green:#27ff8b;
+      --mono:'D2Coding','Consolas',ui-monospace,monospace;
+    }
+    *{box-sizing:border-box}
+    html,body{
+      width:100%;
+      height:100%;
+      margin:0;
+      overflow:hidden;
+      background:transparent;
+      font-family:var(--mono);
+    }
+    .face-wrap{
+      position:fixed;
+      inset:0;
+      width:460px;
+      height:500px;
+      display:grid;
+      place-items:center;
+      pointer-events:none;
+      animation:rise .9s ease-out;
+    }
+    @keyframes rise{
+      from{transform:translateY(40px) scale(.85);opacity:0}
+      to{transform:none;opacity:1}
+    }
+    .corecanvas{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      display:block;
+      filter:drop-shadow(0 0 22px rgba(34,240,255,.28));
+    }
+    .crtface{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+    }
+    .crt-scale{
+      transform:scale(.8);
+      transform-origin:center;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      font-family:var(--mono);
+    }
+    @keyframes crt_scanmove{from{transform:translateY(0)}to{transform:translateY(8px)}}
+    @keyframes crt_flick{0%,96%,100%{opacity:1}97%{opacity:.82}98%{opacity:.94}}
+    @keyframes crt_antpulse{0%,100%{opacity:.55;transform:scale(.9)}50%{opacity:1;transform:scale(1.18)}}
+    @keyframes crt_breathe{0%,100%{transform:scale(1);opacity:.10}50%{transform:scale(1.05);opacity:.30}}
+    @keyframes crt_blink{0%,55%{opacity:1}56%,100%{opacity:0}}
+    @keyframes crt_dotpulse{0%,100%{box-shadow:0 0 6px 1px #27ff8b;opacity:.7}50%{box-shadow:0 0 14px 3px #27ff8b;opacity:1}}
+  </style>
+</head>
+<body>
+  <div class="face-wrap">
+    <canvas id="coreCanvas" class="corecanvas" width="460" height="500"></canvas>
+    <div id="crtFace" class="crtface">
+      <div class="crt-scale">
+        <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:-2px;">
+          <div style="width:14px;height:14px;border-radius:50%;background:#ff3ec8;box-shadow:0 0 14px 3px rgba(255,62,200,.8);animation:crt_antpulse 1.8s ease-in-out infinite;"></div>
+          <div style="width:3px;height:26px;background:linear-gradient(#ff3ec8,rgba(255,62,200,.3));"></div>
+        </div>
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+          <div style="position:absolute;width:438px;height:392px;border:1px solid rgba(34,240,255,.5);border-radius:48px;animation:crt_breathe 3.2s ease-in-out infinite;pointer-events:none;"></div>
+          <div style="position:absolute;width:412px;height:366px;border:1.5px solid rgba(34,240,255,.18);border-radius:42px;pointer-events:none;"></div>
+          <div style="position:relative;width:384px;height:338px;border:4px solid #22f0ff;border-radius:34px;background:#0a0e1a;box-shadow:0 0 42px rgba(34,240,255,.30),inset 0 0 32px rgba(34,240,255,.06);display:flex;align-items:center;justify-content:center;animation:crt_flick 6s infinite;">
+            <div style="position:relative;width:308px;height:262px;border-radius:22px;background:#020308;border:1.5px solid rgba(34,240,255,.45);overflow:hidden;box-shadow:inset 0 0 26px rgba(0,0,0,.8);">
+              <canvas id="crtCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:1;" width="306" height="260"></canvas>
+              <div style="position:absolute;inset:0;z-index:2;background:repeating-linear-gradient(0deg,transparent 0 19px,rgba(34,240,255,.06) 19px 20px);pointer-events:none;"></div>
+              <div style="position:absolute;inset:0;z-index:2;background:radial-gradient(120% 60% at 50% -10%,rgba(34,240,255,.10),transparent 60%);pointer-events:none;"></div>
+              <div style="position:absolute;inset:-8px;z-index:3;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.35) 3px 4px);animation:crt_scanmove .6s steps(2) infinite;pointer-events:none;"></div>
+              <div style="position:absolute;inset:0;z-index:4;background:radial-gradient(110% 110% at 50% 45%,transparent 55%,rgba(0,0,0,.55) 100%),linear-gradient(180deg,transparent 70%,rgba(2,3,8,.85) 100%);pointer-events:none;"></div>
+              <div style="position:absolute;top:8px;left:8px;width:14px;height:14px;border-left:1.5px solid rgba(34,240,255,.6);border-top:1.5px solid rgba(34,240,255,.6);z-index:5;"></div>
+              <div style="position:absolute;top:8px;right:8px;width:14px;height:14px;border-right:1.5px solid rgba(34,240,255,.6);border-top:1.5px solid rgba(34,240,255,.6);z-index:5;"></div>
+              <div style="position:absolute;left:14px;bottom:12px;right:14px;z-index:6;display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2px;color:#7e94b5;">
+                <span style="width:7px;height:7px;border-radius:50%;background:#27ff8b;animation:crt_dotpulse 1.4s ease-in-out infinite;flex:none;"></span>
+                <span style="color:#9fb4d6;">SHIFT//AI</span>
+                <span style="opacity:.5;">.</span>
+                <span style="color:#27ff8b;text-shadow:0 0 8px rgba(39,255,139,.6);">LISTENING</span>
+                <span style="color:#27ff8b;animation:crt_blink 1s steps(1) infinite;">_</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <svg width="208" height="80" viewBox="0 0 208 80" style="margin-top:-2px;filter:drop-shadow(0 0 8px rgba(34,240,255,.25));">
+          <path d="M74 4 L134 4 L154 52 L54 52 Z" fill="#0a0e1a" stroke="#22f0ff" stroke-width="3"></path>
+          <rect x="36" y="50" width="136" height="16" rx="8" fill="#0a0e1a" stroke="#22f0ff" stroke-width="3"></rect>
+        </svg>
+        <div style="margin-top:6px;font-size:11px;letter-spacing:3px;color:rgba(34,240,255,.55);text-shadow:0 0 10px rgba(34,240,255,.3);">음성 신호 상시 수신 · ALWAYS LISTENING</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const PERSONA = { standard:{ color:'#27ff8b' } };
+    const state = { persona:'standard' };
+    const $ = (s) => document.querySelector(s);
+
+    function makeCrtSpectrum(cv){
+      const N=30;
+      const bars=Array.from({length:N},()=>({v:0,seed:Math.random()*1000}));
+      const t0=performance.now();
+      function noise(t,s){
+        const a=0.6*Math.sin(t*3.0+s)+0.3*Math.sin(t*6.7+s*1.7)+0.1*Math.sin(t*11.3+s*0.7);
+        return Math.min(1,Math.max(0,0.5+0.5*a));
+      }
+      function draw(){
+        const dpr=Math.min(window.devicePixelRatio||1,2);
+        const w=cv.clientWidth,h=cv.clientHeight;
+        if(w&&h){
+          if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr;}
+          const ctx=cv.getContext('2d');
+          ctx.setTransform(dpr,0,0,dpr,0,0);
+          ctx.clearRect(0,0,w,h);
+          const t=(performance.now()-t0)/1000;
+          const baseY=h*.52;
+          const gap=w/(N+2);
+          ctx.save();
+          ctx.globalAlpha=.14;
+          ctx.strokeStyle='#22f0ff';
+          ctx.lineWidth=1;
+          for(let y=22;y<h;y+=22){ctx.beginPath();ctx.moveTo(18,y);ctx.lineTo(w-18,y);ctx.stroke();}
+          ctx.globalAlpha=1;
+          for(let i=0;i<N;i++){
+            const b=bars[i];
+            const target=noise(t,b.seed);
+            b.v=b.v*.82+target*.18;
+            const amp=(10+b.v*70)*(0.55+0.45*Math.sin(t*1.5+i*.3)**2);
+            const x=gap*(i+1.5);
+            const grad=ctx.createLinearGradient(x,baseY-amp,x,baseY+amp);
+            grad.addColorStop(0,'rgba(34,240,255,.08)');
+            grad.addColorStop(.45,'rgba(34,240,255,.95)');
+            grad.addColorStop(.55,'rgba(39,255,139,.95)');
+            grad.addColorStop(1,'rgba(34,240,255,.08)');
+            ctx.strokeStyle=grad;
+            ctx.shadowColor='#22f0ff';
+            ctx.shadowBlur=10;
+            ctx.lineWidth=3;
+            ctx.beginPath();
+            ctx.moveTo(x,baseY-amp*.5);
+            ctx.lineTo(x,baseY+amp*.5);
+            ctx.stroke();
+          }
+          ctx.globalAlpha=.35;
+          ctx.strokeStyle='#27ff8b';
+          ctx.shadowBlur=14;
+          ctx.beginPath();
+          for(let x=18;x<w-18;x+=3){
+            const y=baseY+Math.sin(x*.055+t*4)*8+Math.sin(x*.13-t*3)*5;
+            x===18?ctx.moveTo(x,y):ctx.lineTo(x,y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+        requestAnimationFrame(draw);
+      }
+      requestAnimationFrame(draw);
+    }
+
+    function rgbOf(hex){
+      const h=(hex||'#27ff8b').replace('#','');
+      const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);
+      return `${(n>>16)&255},${(n>>8)&255},${n&255}`;
+    }
+
+    function makeCoreFace(cvs){
+      const ctx=cvs.getContext('2d');
+      const DPR=Math.min(window.devicePixelRatio||1,2);
+      const W=460,H=500;
+      cvs.width=W*DPR;
+      cvs.height=H*DPR;
+      ctx.scale(DPR,DPR);
+      const start=performance.now();
+      let nextSwitch=0, speaking=true, base=.72;
+      const rnd=(a,b)=>a+Math.random()*(b-a);
+      function draw(now){
+        const t=(now-start)/1000;
+        if(t>nextSwitch){
+          speaking=Math.random()<.62;
+          base=rnd(.55,.98);
+          nextSwitch=t+rnd(.7,2.1);
+        }
+        ctx.clearRect(0,0,W,H);
+        ctx.save();
+        ctx.globalCompositeOperation='lighter';
+        ctx.lineCap='round';
+        ctx.strokeStyle='rgba(34,240,255,.62)';
+        ctx.lineWidth=1.4;
+        for(let r of [126,154,188]){
+          ctx.globalAlpha=.18+(Math.sin(t*1.2+r)*.04);
+          ctx.beginPath();
+          ctx.arc(W/2,H/2-3,r,0,Math.PI*2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha=.9;
+        ctx.strokeStyle='#22f0ff';
+        ctx.lineWidth=3;
+        ctx.shadowColor='#22f0ff';
+        ctx.shadowBlur=18;
+        ctx.beginPath();
+        ctx.arc(W/2,H/2-3,154,Math.PI*.08,Math.PI*1.92);
+        ctx.stroke();
+        ctx.strokeStyle='#ff3ec8';
+        ctx.shadowColor='#ff3ec8';
+        ctx.beginPath();
+        ctx.arc(W/2,H/2-3,154,Math.PI*.05+t*.22,Math.PI*.38+t*.22);
+        ctx.stroke();
+        const bars=36, cx=W/2, cy=H/2-3;
+        for(let i=0;i<bars;i++){
+          const a=(i/bars)*Math.PI*2+t*.18;
+          const n=.45+.55*Math.sin(t*3+i*.72)*Math.sin(t*1.7+i*.23);
+          const len=(speaking?18+base*30:10)+n*18;
+          const r1=82, r2=r1+len;
+          ctx.strokeStyle=i%7===0?'#27ff8b':'#22f0ff';
+          ctx.shadowColor=ctx.strokeStyle;
+          ctx.lineWidth=2;
+          ctx.globalAlpha=.45+n*.45;
+          ctx.beginPath();
+          ctx.moveTo(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1);
+          ctx.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha=.9;
+        ctx.fillStyle='rgba(2,3,8,.9)';
+        ctx.shadowBlur=20;
+        ctx.shadowColor='#22f0ff';
+        roundRect(ctx,126,186,208,92,18);
+        ctx.fill();
+        ctx.strokeStyle='rgba(34,240,255,.55)';
+        ctx.lineWidth=1.5;
+        ctx.stroke();
+        ctx.shadowColor='#27ff8b';
+        ctx.shadowBlur=12;
+        ctx.fillStyle='#27ff8b';
+        ctx.font='bold 18px Consolas, monospace';
+        ctx.textAlign='center';
+        ctx.fillText('SHIFT AI',230,229);
+        ctx.shadowColor='#22f0ff';
+        ctx.fillStyle='#22f0ff';
+        ctx.font='10px Consolas, monospace';
+        ctx.fillText('READY · LISTENING',230,250);
+        ctx.restore();
+        requestAnimationFrame(draw);
+      }
+      requestAnimationFrame(draw);
+    }
+
+    function roundRect(ctx,x,y,w,h,r){
+      ctx.beginPath();
+      ctx.moveTo(x+r,y);
+      ctx.arcTo(x+w,y,x+w,y+h,r);
+      ctx.arcTo(x+w,y+h,x,y+h,r);
+      ctx.arcTo(x,y+h,x,y,r);
+      ctx.arcTo(x,y,x+w,y,r);
+      ctx.closePath();
+    }
+
+    makeCoreFace($('#coreCanvas'));
+    makeCrtSpectrum($('#crtCanvas'));
+  </script>
+</body>
+</html>

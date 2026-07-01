@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Web.WebView2.Core;
 using ShiftAI.Core;
 using MenuModel = ShiftAI.Core.MenuItem;
 using MediaColor = System.Windows.Media.Color;
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
         _gameConversation.Add("Shift AI  게임은 계속하세요. 필요한 주문만 빠르게 처리할게요.");
         FooterVoiceStatus.Text = $"{_voiceEngineStatus} · BACKGROUND GETO CONTROL";
         VoiceEngineText.Text = _voiceEngineStatus;
+        _ = InitializeFaceWebViewAsync();
         ShowDesktop();
     }
 
@@ -63,6 +65,23 @@ public partial class MainWindow : Window
     {
         _speech.Dispose();
         base.OnClosed(e);
+    }
+
+    private async Task InitializeFaceWebViewAsync()
+    {
+        try
+        {
+            await FaceWebView.EnsureCoreWebView2Async();
+            FaceWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            FaceWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+
+            var facePath = Path.Combine(AppContext.BaseDirectory, "Assets", "shift-face.html");
+            FaceWebView.Source = new Uri(facePath);
+        }
+        catch (Exception ex)
+        {
+            AddAssistant($"로봇 페이스 WebView2 초기화 실패: {ex.Message}");
+        }
     }
 
     private async void SendButton_Click(object sender, RoutedEventArgs e)
