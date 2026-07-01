@@ -141,7 +141,7 @@ Shift AI는 아래 순서로 Gemini 키를 찾습니다.
 
 ## Shift AI v1 음성 모드
 
-v1은 가볍게 Push-to-talk 방식으로 동작합니다.
+v1은 별도 플로팅 음성 창에서 Push-to-talk 방식으로 동작합니다. 게임 중에는 메인 화면 안쪽 위젯이 아니라 작은 always-on-top 창을 띄우는 구조입니다.
 
 ```text
 SHIFT + V      음성 위젯 열기/닫기

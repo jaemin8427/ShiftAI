@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<string> _conversation = [];
     private readonly ObservableCollection<string> _gameConversation = [];
     private readonly List<string> _activationSequence = [];
+    private VoiceFloatingWindow? _voiceWindow;
     private int _pendingQuantity = 1;
     private string _pendingText = "";
     private string _screen = "desktop";
@@ -433,8 +434,9 @@ public partial class MainWindow : Window
     private void EnterVoice()
     {
         _voiceMode = true;
-        VoiceWidget.Visibility = Visibility.Visible;
+        VoiceWidget.Visibility = Visibility.Collapsed;
         VoiceTranscript.Text = $"듣기 준비됨. SPACE 또는 버튼을 누르고 말하세요. ({_voiceEngineStatus})";
+        ShowVoiceWindow();
         ShowToast("음성 모드 ON");
     }
 
@@ -444,7 +446,32 @@ public partial class MainWindow : Window
         _pttHold = false;
         PttButton.Content = "누르는 동안 듣기 (SPACE)";
         VoiceWidget.Visibility = Visibility.Collapsed;
+        HideVoiceWindow();
         ShowToast("음성 모드 OFF");
+    }
+
+    private void ShowVoiceWindow()
+    {
+        if (_voiceWindow is null)
+        {
+            _voiceWindow = new VoiceFloatingWindow
+            {
+                Owner = this
+            };
+            _voiceWindow.CloseRequested += (_, _) => ExitVoice();
+            _voiceWindow.PttStarted += (_, _) => StartPtt();
+            _voiceWindow.PttEnded += async (_, _) => await EndPttAsync();
+        }
+
+        _voiceWindow.SetReady(_voiceEngineStatus);
+        _voiceWindow.PositionBottomRight();
+        _voiceWindow.Show();
+        _voiceWindow.Activate();
+    }
+
+    private void HideVoiceWindow()
+    {
+        _voiceWindow?.Hide();
     }
 
     private void StartPtt()
@@ -457,6 +484,7 @@ public partial class MainWindow : Window
         _pttHold = true;
         PttButton.Content = "듣는 중...";
         VoiceTranscript.Text = "...";
+        _voiceWindow?.SetListening();
     }
 
     private async Task EndPttAsync()
@@ -470,6 +498,7 @@ public partial class MainWindow : Window
         PttButton.Content = "누르는 동안 듣기 (SPACE)";
         var voiceText = await _voiceInput.ListenOnceAsync();
         VoiceTranscript.Text = $"\"{voiceText}\"";
+        _voiceWindow?.SetTranscript(voiceText);
         await ExecuteCommandAsync(voiceText);
     }
 
