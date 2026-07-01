@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Shift AI Voice"
-        Width="350" Height="260"
+        Width="220" Height="72"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -14,8 +14,8 @@
         PreviewKeyUp="Window_PreviewKeyUp">
     <Grid Background="Transparent" ClipToBounds="True">
         <wv2:WebView2 x:Name="VoiceWebView"
-                      Width="350"
-                      Height="260"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
                       DefaultBackgroundColor="Transparent"/>
     </Grid>
 </Window>

@@ -9,8 +9,14 @@ namespace ShiftAI.App;
 
 public partial class VoiceFloatingWindow : Window
 {
+    private const double CompactWidth = 220;
+    private const double CompactHeight = 72;
+    private const double ExpandedWidth = 350;
+    private const double ExpandedHeight = 260;
+
     private bool _pttDown;
     private bool _webReady;
+    private bool _expanded;
     private string _pendingEngineStatus = "STT";
     private string _pendingTranscript = "대기 중";
 
@@ -96,6 +102,15 @@ public partial class VoiceFloatingWindow : Window
             case "close":
                 CloseRequested?.Invoke(this, EventArgs.Empty);
                 break;
+            case "toggle":
+                ToggleExpanded();
+                break;
+            case "compact":
+                SetExpanded(false);
+                break;
+            case "expand":
+                SetExpanded(true);
+                break;
             case "drag":
                 TryDragMove();
                 break;
@@ -139,6 +154,30 @@ public partial class VoiceFloatingWindow : Window
         {
             // Best-effort visual state sync only.
         }
+    }
+
+    private void ToggleExpanded()
+    {
+        SetExpanded(!_expanded);
+    }
+
+    private void SetExpanded(bool expanded)
+    {
+        if (_expanded == expanded)
+        {
+            return;
+        }
+
+        var oldRight = Left + Width;
+        var oldBottom = Top + Height;
+        _expanded = expanded;
+        Width = expanded ? ExpandedWidth : CompactWidth;
+        Height = expanded ? ExpandedHeight : CompactHeight;
+        Left = Math.Max(SystemParameters.WorkArea.Left, oldRight - Width);
+        Top = Math.Max(SystemParameters.WorkArea.Top, oldBottom - Height);
+        _ = ExecuteVoiceScriptAsync(expanded
+            ? "window.shiftVoice?.setExpanded(true);"
+            : "window.shiftVoice?.setExpanded(false);");
     }
 
     private static string Json(string value)
