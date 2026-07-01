@@ -60,6 +60,7 @@ public partial class MainWindow : Window
         VoiceEngineText.Text = _voiceEngineStatus;
         _ = InitializeFaceWebViewAsync();
         ShowDesktop();
+        Dispatcher.BeginInvoke(EnterVoice, DispatcherPriority.ApplicationIdle);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -437,6 +438,7 @@ public partial class MainWindow : Window
         VoiceWidget.Visibility = Visibility.Collapsed;
         VoiceTranscript.Text = $"듣기 준비됨. SPACE 또는 버튼을 누르고 말하세요. ({_voiceEngineStatus})";
         ShowVoiceWindow();
+        WindowState = WindowState.Minimized;
         ShowToast("음성 모드 ON");
     }
 
@@ -447,6 +449,8 @@ public partial class MainWindow : Window
         PttButton.Content = "누르는 동안 듣기 (SPACE)";
         VoiceWidget.Visibility = Visibility.Collapsed;
         HideVoiceWindow();
+        WindowState = WindowState.Normal;
+        Activate();
         ShowToast("음성 모드 OFF");
     }
 
@@ -454,10 +458,7 @@ public partial class MainWindow : Window
     {
         if (_voiceWindow is null)
         {
-            _voiceWindow = new VoiceFloatingWindow
-            {
-                Owner = this
-            };
+            _voiceWindow = new VoiceFloatingWindow();
             _voiceWindow.CloseRequested += (_, _) => ExitVoice();
             _voiceWindow.PttStarted += (_, _) => StartPtt();
             _voiceWindow.PttEnded += async (_, _) => await EndPttAsync();
