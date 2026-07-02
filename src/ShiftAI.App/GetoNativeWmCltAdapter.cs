@@ -201,9 +201,9 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 GetoDesktopAutomation.Click(Ratio(bounds, FirstCardXRatio, FirstCardYRatio));
-                Thread.Sleep(450);
+                Thread.Sleep(750);
                 ClickAddButton(window, bounds);
-                Thread.Sleep(350);
+                Thread.Sleep(600);
 
                 if (!VerifyCartContains(window, bounds, keyword))
                 {
@@ -276,12 +276,12 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
         //    "담기"). We search a specific term so the first result is the intended item; the OCR cart
         //    verification below guards against the wrong item being added.
         GetoDesktopAutomation.Click(Ratio(bounds, FirstCardXRatio, FirstCardYRatio));
-        Thread.Sleep(450);
+        Thread.Sleep(750); // wait for the inline 담기 or the options modal to render
 
-        // 3) Click "담기" (OCR-located, calibrated-ratio fallback).
+        // 3) Click "담기" / "주문목록에 담기" (OCR-located, calibrated-ratio fallback).
         cancellationToken.ThrowIfCancellationRequested();
         ClickAddButton(window, bounds);
-        Thread.Sleep(350);
+        Thread.Sleep(600); // wait for the modal to close and the cart to update
 
         // 4) Verify the item actually landed in the cart so we never submit the wrong food.
         if (!VerifyCartContains(window, bounds, itemName))
@@ -293,21 +293,34 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
         return new GetoAutomationResult(true, $"{itemName}을(를) 장바구니에 담았습니다.");
     }
 
-    /// <summary>Clicks the "담기" button that appears on the selected card (OCR-located, ratio fallback).</summary>
+    /// <summary>
+    /// Adds the selected product to the cart. Two layouts exist:
+    ///  - Simple products show an inline "담기" button on the card (grid region).
+    ///  - Products with options open a modal whose add button reads "주문목록에 담기" (window center).
+    /// We handle the modal first (it covers the grid), then the inline button, then a ratio fallback.
+    /// </summary>
     private static void ClickAddButton(IntPtr window, Rectangle bounds)
     {
         if (GetoOcr.Available)
         {
-            var gridMaxX = (int)(bounds.Width * 0.72);
-            OcrToken? add;
+            List<OcrToken> tokens;
             using (var capture = CaptureWindow(bounds))
             {
-                add = GetoOcr.Read(capture)
-                    .Where(token => token.Bounds.Right < gridMaxX && Normalize(token.Text).Contains("담기"))
-                    .OrderBy(token => token.Bounds.Top)
-                    .FirstOrDefault();
+                tokens = GetoOcr.Read(capture);
             }
 
+            var modalAdd = tokens
+                .Where(token => Normalize(token.Text).Contains("주문목록") || Normalize(token.Text).Contains("목록에담기"))
+                .OrderByDescending(token => token.Bounds.Width)
+                .FirstOrDefault();
+
+            var gridMaxX = (int)(bounds.Width * 0.72);
+            var inlineAdd = tokens
+                .Where(token => token.Bounds.Right < gridMaxX && Normalize(token.Text).Contains("담기"))
+                .OrderBy(token => token.Bounds.Top)
+                .FirstOrDefault();
+
+            var add = modalAdd ?? inlineAdd;
             if (add is not null)
             {
                 GetoDesktopAutomation.Click(new Point(
