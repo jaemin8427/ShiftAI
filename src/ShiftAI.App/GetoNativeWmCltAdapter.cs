@@ -200,13 +200,10 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
             if (count == 1)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!SelectProductByOcr(window, bounds, keyword, cancellationToken))
-                {
-                    GetoDesktopAutomation.Click(Ratio(bounds, FirstCardXRatio, FirstCardYRatio));
-                    Thread.Sleep(350);
-                    GetoDesktopAutomation.Click(Ratio(bounds, AddButtonXRatio, AddButtonYRatio));
-                    Thread.Sleep(300);
-                }
+                GetoDesktopAutomation.Click(Ratio(bounds, FirstCardXRatio, FirstCardYRatio));
+                Thread.Sleep(450);
+                ClickAddButton(window, bounds);
+                Thread.Sleep(350);
 
                 if (!VerifyCartContains(window, bounds, keyword))
                 {
@@ -275,15 +272,16 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        // 2)+3) Select the exact product by its OCR'd name (not a blind coordinate) and click 담기.
-        //       Fall back to fixed first-slot ratios only when OCR is unavailable or finds nothing.
-        if (!SelectProductByOcr(window, bounds, itemName, cancellationToken))
-        {
-            GetoDesktopAutomation.Click(Ratio(bounds, FirstCardXRatio, FirstCardYRatio));
-            Thread.Sleep(350);
-            GetoDesktopAutomation.Click(Ratio(bounds, AddButtonXRatio, AddButtonYRatio));
-            Thread.Sleep(300);
-        }
+        // 2) Click the first result card at the calibrated image position (this is what actually reveals
+        //    "담기"). We search a specific term so the first result is the intended item; the OCR cart
+        //    verification below guards against the wrong item being added.
+        GetoDesktopAutomation.Click(Ratio(bounds, FirstCardXRatio, FirstCardYRatio));
+        Thread.Sleep(450);
+
+        // 3) Click "담기" (OCR-located, calibrated-ratio fallback).
+        cancellationToken.ThrowIfCancellationRequested();
+        ClickAddButton(window, bounds);
+        Thread.Sleep(350);
 
         // 4) Verify the item actually landed in the cart so we never submit the wrong food.
         if (!VerifyCartContains(window, bounds, itemName))
@@ -293,6 +291,33 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
         }
 
         return new GetoAutomationResult(true, $"{itemName}을(를) 장바구니에 담았습니다.");
+    }
+
+    /// <summary>Clicks the "담기" button that appears on the selected card (OCR-located, ratio fallback).</summary>
+    private static void ClickAddButton(IntPtr window, Rectangle bounds)
+    {
+        if (GetoOcr.Available)
+        {
+            var gridMaxX = (int)(bounds.Width * 0.72);
+            OcrToken? add;
+            using (var capture = CaptureWindow(bounds))
+            {
+                add = GetoOcr.Read(capture)
+                    .Where(token => token.Bounds.Right < gridMaxX && Normalize(token.Text).Contains("담기"))
+                    .OrderBy(token => token.Bounds.Top)
+                    .FirstOrDefault();
+            }
+
+            if (add is not null)
+            {
+                GetoDesktopAutomation.Click(new Point(
+                    bounds.Left + add.Bounds.Left + add.Bounds.Width / 2,
+                    bounds.Top + add.Bounds.Top + add.Bounds.Height / 2));
+                return;
+            }
+        }
+
+        GetoDesktopAutomation.Click(Ratio(bounds, AddButtonXRatio, AddButtonYRatio));
     }
 
     /// <summary>
