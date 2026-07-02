@@ -1183,17 +1183,32 @@ public partial class MainWindow : Window
     private static (IVoiceInputService Service, string Status) CreateVoiceInput(string root)
     {
         var modelsDir = Path.Combine(root, "data", "models");
-        // Prefer higher-accuracy Korean models when present, fall back to lighter ones.
-        var modelPath = new[] { "ggml-small.bin", "ggml-base.bin", "ggml-tiny.bin" }
+        // Prefer higher-accuracy Whisper models when present, else the built-in Windows STT (no model
+        // download), else a demo fallback.
+        var whisperModel = new[] { "ggml-small.bin", "ggml-base.bin", "ggml-tiny.bin" }
             .Select(name => Path.Combine(modelsDir, name))
-            .FirstOrDefault(File.Exists)
-            ?? Path.Combine(modelsDir, "ggml-tiny.bin");
-        var primary = new WhisperVoiceInputService(modelPath);
-        var fallback = new DemoVoiceInputService();
-        var status = File.Exists(modelPath)
-            ? $"WHISPER.NET LOCAL STT READY ({Path.GetFileName(modelPath)})"
-            : "DEMO STT FALLBACK";
+            .FirstOrDefault(File.Exists);
 
-        return (new FallbackVoiceInputService(primary, fallback), status);
+        var providers = new List<(IVoiceInputService Service, string Tag)>();
+        if (whisperModel is not null)
+        {
+            providers.Add((new WhisperVoiceInputService(whisperModel), $"WHISPER.NET STT ({Path.GetFileName(whisperModel)})"));
+        }
+
+        if (WindowsSpeechInputService.IsKoreanAvailable())
+        {
+            providers.Add((new WindowsSpeechInputService(), "WINDOWS STT (ko-KR)"));
+        }
+
+        providers.Add((new DemoVoiceInputService(), "DEMO STT FALLBACK"));
+
+        // Chain providers so each falls back to the next when it returns an empty result.
+        IVoiceInputService chain = providers[^1].Service;
+        for (var i = providers.Count - 2; i >= 0; i--)
+        {
+            chain = new FallbackVoiceInputService(providers[i].Service, chain);
+        }
+
+        return (chain, providers[0].Tag);
     }
 }

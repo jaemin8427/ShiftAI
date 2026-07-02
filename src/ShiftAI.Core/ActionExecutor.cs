@@ -62,14 +62,9 @@ public sealed class ActionExecutor
                 break;
 
             case IntentType.BrowseMenu:
-                if (spoken)
-                {
-                    // Voice mode: only exact items are auto-ordered. An ambiguous keyword must not act.
-                    status = AgentStatus.NeedsClarification;
-                    assistantText = $"'{route.Keyword}' \uC740(\uB294) \uC885\uB958\uAC00 \uC5EC\uB7EC \uAC1C\uB77C \uC74C\uC131\uC73C\uB85C\uB294 \uC8FC\uBB38\uD558\uC9C0 \uC54A\uC558\uC5B4. \uC815\uD655\uD55C \uC774\uB984\uC73C\uB85C \uB9D0\uD574\uC918. (\uC608: \uCF5C\uB77C, \uC544\uC774\uC2A4 \uC544\uBA54\uB9AC\uCE74\uB178)";
-                    break;
-                }
-
+                // Open + search the keyword; the adapter auto-orders only when the search narrows to a
+                // single product (unambiguous), otherwise it leaves the screen up for manual selection.
+                // This is safe by voice too: multiple results never auto-order.
                 toolResult = await ExecuteToolAsync(route, cancellationToken);
                 status = toolResult.Status;
                 assistantText = toolResult.Message;

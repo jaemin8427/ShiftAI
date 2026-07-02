@@ -178,6 +178,8 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
                 return new GetoAutomationResult(false, "현재 WmClt 창이 음식주문 화면이 아닙니다.");
             }
 
+            var previousForeground = GetForegroundWindow();
+
             GetoDesktopAutomation.BringToFront(window, bounds);
             Thread.Sleep(200);
 
@@ -190,11 +192,70 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
             GetoDesktopAutomation.SendUnicodeText(keyword);
             Thread.Sleep(120);
             GetoDesktopAutomation.SendVirtualKey(GetoDesktopAutomation.VkReturn);
-            Thread.Sleep(400);
+            Thread.Sleep(700);
 
-            // Intentionally leave the window in front (no foreground restore) so the user can choose.
-            return new GetoAutomationResult(true, $"'{keyword}' 검색 화면을 열었습니다. 원하는 메뉴를 골라 주세요.");
+            // If the search narrowed to exactly ONE product, order it directly (even if the phrase
+            // wasn't an exact item name). If 0 or 2+, leave the screen up for manual selection.
+            var count = CountGridProducts(bounds);
+            if (count == 1)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!SelectProductByOcr(window, bounds, keyword, cancellationToken))
+                {
+                    GetoDesktopAutomation.Click(Ratio(bounds, FirstCardXRatio, FirstCardYRatio));
+                    Thread.Sleep(350);
+                    GetoDesktopAutomation.Click(Ratio(bounds, AddButtonXRatio, AddButtonYRatio));
+                    Thread.Sleep(300);
+                }
+
+                if (!VerifyCartContains(window, bounds, keyword))
+                {
+                    return new GetoAutomationResult(false, $"'{keyword}' 이(가) 장바구니에 정확히 담겼는지 확인하지 못해 주문을 중단했습니다.");
+                }
+
+                SelectPayment(window, bounds);
+                Thread.Sleep(300);
+
+                if (AutoSubmit)
+                {
+                    ClickSubmit(window, bounds);
+                    Thread.Sleep(1600);
+                    DismissCompletionModal(window, bounds);
+                    Thread.Sleep(300);
+                    if (previousForeground != IntPtr.Zero && previousForeground != window)
+                    {
+                        RestoreForeground(previousForeground);
+                    }
+
+                    return new GetoAutomationResult(true, $"'{keyword}' 검색 결과가 하나뿐이라 바로 주문했습니다.");
+                }
+
+                return new GetoAutomationResult(true, $"'{keyword}' 검색 결과가 하나뿐이라 장바구니에 담았습니다. (자동 전송이 꺼져 있어 주문하기는 누르지 않았습니다.)");
+            }
+
+            // Leave the window in front so the user can choose.
+            return new GetoAutomationResult(true, count <= 0
+                ? $"'{keyword}' 검색 화면을 열었습니다. 원하는 메뉴를 골라 주세요."
+                : $"'{keyword}' 검색 결과가 여러 개예요. 화면에서 원하는 메뉴를 눌러 주세요.");
         }, cancellationToken);
+    }
+
+    /// <summary>Counts product cards currently shown in the grid by OCR'ing price lines (e.g. "5,400원").</summary>
+    private static int CountGridProducts(Rectangle bounds)
+    {
+        if (!GetoOcr.Available)
+        {
+            return -1; // unknown -> caller treats as "not single" and leaves the screen for manual pick
+        }
+
+        var gridMaxX = (int)(bounds.Width * 0.72);
+        var minY = (int)(bounds.Height * 0.14); // below the banner/category bar
+        using var capture = CaptureWindow(bounds);
+        return GetoOcr.Read(capture)
+            .Count(token => token.Bounds.Right < gridMaxX
+                && token.Bounds.Top > minY
+                && token.Text.Contains('원')
+                && token.Text.Any(char.IsDigit));
     }
 
     private static GetoAutomationResult SearchAndAddItem(IntPtr window, Rectangle bounds, string itemName, CancellationToken cancellationToken)

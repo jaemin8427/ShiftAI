@@ -28,10 +28,8 @@ public sealed class MockPcCafeAdapter : IPcCafeAdapter
         var result = await _nativeWmClt.OpenAndSearchAsync(keyword, cancellationToken);
         return new ToolResult(
             "openFoodSearch",
-            AgentStatus.NeedsClarification,
-            result.Success
-                ? $"'{keyword}' 검색 화면을 열었어요. 화면에서 원하는 메뉴를 눌러 주세요."
-                : $"검색 화면을 열지 못했어요. {result.Message}",
+            result.Success ? AgentStatus.Completed : AgentStatus.NeedsClarification,
+            result.Success ? result.Message : $"검색 화면을 열지 못했어요. {result.Message}",
             new { seatNumber, keyword, opened = result.Success });
     }
 

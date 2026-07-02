@@ -110,21 +110,21 @@ dotnet run --project src\ShiftAI.App\ShiftAI.App.csproj
 
 ## 음성(STT)
 
-로컬 Whisper.net(한국어)로 4초 녹음 후 전사합니다. 모델 파일을 `data/models`에 두면 자동으로 사용합니다(우선순위 `ggml-small` > `ggml-base` > `ggml-tiny`).
+STT는 아래 우선순위로 **자동 선택**됩니다.
 
-```text
-data\models\ggml-small.bin   # 권장(한국어 정확도)
-```
+1. **Whisper.net (한국어)** — `data/models`에 모델이 있으면 사용 (우선순위 `ggml-small` > `ggml-base` > `ggml-tiny`). 정확도 최상, 오프라인.
+2. **Windows 내장 STT (ko-KR)** — 모델이 없어도 동작. ko-KR 음성 인식기가 설치돼 있어야 하며, 짧은 명령엔 무난하지만 한국어 정확도는 Whisper보다 낮습니다.
+3. **데모** — 둘 다 없을 때 빈 결과.
 
-모델은 whisper.cpp 배포처에서 받습니다.
+앱 하단/위젯에 현재 엔진이 표시됩니다: `WHISPER.NET STT (ggml-small.bin)` / `WINDOWS STT (ko-KR)` / `DEMO STT FALLBACK`.
+
+Whisper 모델은 git에 포함하지 않습니다(465MB, GitHub 100MB 제한 초과). 필요하면 아래로 받으세요.
 
 ```powershell
-Invoke-WebRequest "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin?download=true" `
-  -OutFile "data\models\ggml-small.bin"
+.\scripts\download-whisper-small.ps1
 ```
 
-모델이 없으면 데모 STT로 폴백(빈 결과)합니다. 앱 하단/위젯에 `WHISPER.NET LOCAL STT READY (ggml-small.bin)`로 상태가 표시됩니다.
-
+> TTS 응답은 Windows 기본 TTS(System.Speech)를 사용합니다.
 > Windows OCR(상품 매칭/검증)은 한국어 OCR 언어팩이 필요합니다(한국어 Windows에는 기본 포함).
 
 ---
