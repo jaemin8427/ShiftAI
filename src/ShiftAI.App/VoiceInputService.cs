@@ -9,7 +9,7 @@ public sealed class DemoVoiceInputService : IVoiceInputService
 {
     public Task<string> ListenOnceAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult("콜라 하나 추가해");
+        return Task.FromResult("");
     }
 }
 

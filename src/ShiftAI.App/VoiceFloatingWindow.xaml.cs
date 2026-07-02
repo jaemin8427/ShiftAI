@@ -1,29 +1,37 @@
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.IO;
 using System.Windows;
 using System.Windows.Input;
-using Microsoft.Web.WebView2.Core;
+using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace ShiftAI.App;
 
 public partial class VoiceFloatingWindow : Window
 {
-    private const double CompactWidth = 220;
-    private const double CompactHeight = 72;
+    private const double CompactWidth = 150;
+    private const double CompactHeight = 48;
     private const double ExpandedWidth = 350;
     private const double ExpandedHeight = 260;
 
+    private readonly DispatcherTimer _animationTimer;
     private bool _pttDown;
-    private bool _webReady;
+    private bool _listeningVisual;
+    private bool _dragging;
+    private bool _movedWhileDragging;
     private bool _expanded;
-    private string _pendingEngineStatus = "STT";
-    private string _pendingTranscript = "대기 중";
+    private Point _lastScreenPoint;
+    private double _phase;
 
     public VoiceFloatingWindow()
     {
         InitializeComponent();
-        Loaded += async (_, _) => await InitializeWebViewAsync();
+
+        _animationTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(34)
+        };
+        _animationTimer.Tick += (_, _) => Animate();
+        _animationTimer.Start();
+        ApplySize();
     }
 
     public event EventHandler? CloseRequested;
@@ -32,89 +40,33 @@ public partial class VoiceFloatingWindow : Window
 
     public void SetReady(string engineStatus)
     {
-        _pendingEngineStatus = engineStatus;
-        _pendingTranscript = $"듣기 준비됨 · {engineStatus}";
-        _ = ExecuteVoiceScriptAsync($"window.shiftVoice?.setReady({Json(engineStatus)});");
+        _listeningVisual = false;
+        LiveDot.Fill = new SolidColorBrush(Color.FromRgb(255, 62, 200));
+        TranscriptText.Text = $"\"듣기 준비됨 · {engineStatus}\"";
+        PttButton.Content = "⌨ 누르고 있는 동안 듣기 (SPACE)";
     }
 
     public void SetListening()
     {
-        _ = ExecuteVoiceScriptAsync("window.shiftVoice?.setListening();");
+        _listeningVisual = true;
+        LiveDot.Fill = new SolidColorBrush(Color.FromRgb(39, 255, 139));
+        TranscriptText.Text = "...";
+        PttButton.Content = "● 듣는 중...";
     }
 
     public void SetTranscript(string text)
     {
-        _pendingTranscript = text;
-        _ = ExecuteVoiceScriptAsync($"window.shiftVoice?.setTranscript({Json(text)});");
+        _listeningVisual = false;
+        LiveDot.Fill = new SolidColorBrush(Color.FromRgb(255, 62, 200));
+        TranscriptText.Text = $"\"{text}\"";
+        PttButton.Content = "⌨ 누르고 있는 동안 듣기 (SPACE)";
     }
 
     public void PositionBottomRight()
     {
         var area = SystemParameters.WorkArea;
-        Left = area.Right - Width - 22;
-        Top = area.Bottom - Height - 58;
-    }
-
-    private async Task InitializeWebViewAsync()
-    {
-        try
-        {
-            await VoiceWebView.EnsureCoreWebView2Async();
-            VoiceWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-            VoiceWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
-            VoiceWebView.CoreWebView2.WebMessageReceived += (_, args) => HandleWebMessage(args);
-            VoiceWebView.NavigationCompleted += async (_, _) =>
-            {
-                _webReady = true;
-                await ExecuteVoiceScriptAsync("window.shiftVoice?.setSeat('PC-38');");
-                await ExecuteVoiceScriptAsync($"window.shiftVoice?.setReady({Json(_pendingEngineStatus)});");
-                if (_pendingTranscript != $"듣기 준비됨 · {_pendingEngineStatus}")
-                {
-                    await ExecuteVoiceScriptAsync($"window.shiftVoice?.setTranscript({Json(_pendingTranscript)});");
-                }
-            };
-
-            var widgetPath = Path.Combine(AppContext.BaseDirectory, "Assets", "voice-widget.html");
-            VoiceWebView.Source = new Uri(widgetPath);
-        }
-        catch
-        {
-            // The caller can still use keyboard shortcuts even if WebView2 is unavailable.
-        }
-    }
-
-    private void HandleWebMessage(CoreWebView2WebMessageReceivedEventArgs args)
-    {
-        using var document = JsonDocument.Parse(args.WebMessageAsJson);
-        if (!document.RootElement.TryGetProperty("type", out var typeElement))
-        {
-            return;
-        }
-
-        switch (typeElement.GetString())
-        {
-            case "ptt-start":
-                StartPtt();
-                break;
-            case "ptt-end":
-                EndPtt();
-                break;
-            case "close":
-                CloseRequested?.Invoke(this, EventArgs.Empty);
-                break;
-            case "toggle":
-                ToggleExpanded();
-                break;
-            case "compact":
-                SetExpanded(false);
-                break;
-            case "expand":
-                SetExpanded(true);
-                break;
-            case "drag":
-                TryDragMove();
-                break;
-        }
+        Left = area.Right - Width - 18;
+        Top = area.Bottom - Height - 46;
     }
 
     private void StartPtt()
@@ -125,6 +77,7 @@ public partial class VoiceFloatingWindow : Window
         }
 
         _pttDown = true;
+        SetListening();
         PttStarted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -139,72 +92,39 @@ public partial class VoiceFloatingWindow : Window
         PttEnded?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task ExecuteVoiceScriptAsync(string script)
+    private void Animate()
     {
-        if (!_webReady || VoiceWebView.CoreWebView2 is null)
+        _phase += _listeningVisual ? 0.42 : 0.16;
+        var width = _expanded ? 312d : 116d;
+        var center = _expanded ? 32d : 11.5d;
+        var amplitude = _listeningVisual
+            ? (_expanded ? 17d : 8.2)
+            : (_expanded ? 4.2 : 2.8);
+        var points = new PointCollection();
+
+        const int count = 24;
+        for (var i = 0; i < count; i++)
         {
-            return;
+            var x = width * i / (count - 1);
+            var envelope = 0.35 + 0.65 * Math.Sin(Math.PI * i / (count - 1));
+            var pulse = Math.Sin(_phase + i * 0.67) * 0.56
+                + Math.Sin(_phase * 0.51 + i * 1.17) * 0.28
+                + Math.Sin(_phase * 1.7 + i * 0.21) * 0.16;
+            var y = center + pulse * amplitude * envelope;
+            points.Add(new Point(x, Math.Clamp(y, 4, _expanded ? 60 : 19)));
         }
 
-        try
-        {
-            await VoiceWebView.ExecuteScriptAsync(script);
-        }
-        catch
-        {
-            // Best-effort visual state sync only.
-        }
-    }
-
-    private void ToggleExpanded()
-    {
-        SetExpanded(!_expanded);
-    }
-
-    private void SetExpanded(bool expanded)
-    {
-        if (_expanded == expanded)
-        {
-            return;
-        }
-
-        var oldRight = Left + Width;
-        var oldBottom = Top + Height;
-        _expanded = expanded;
-        Width = expanded ? ExpandedWidth : CompactWidth;
-        Height = expanded ? ExpandedHeight : CompactHeight;
-        Left = Math.Max(SystemParameters.WorkArea.Left, oldRight - Width);
-        Top = Math.Max(SystemParameters.WorkArea.Top, oldBottom - Height);
-        _ = ExecuteVoiceScriptAsync(expanded
-            ? "window.shiftVoice?.setExpanded(true);"
-            : "window.shiftVoice?.setExpanded(false);");
-    }
-
-    private static string Json(string value)
-    {
-        return JsonSerializer.Serialize(value, new JsonSerializerOptions
-        {
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        });
-    }
-
-    private void TryDragMove()
-    {
-        try
-        {
-            DragMove();
-        }
-        catch
-        {
-            // DragMove can throw when the pointer is no longer pressed.
-        }
+        WaveLine.Points = points;
+        WaveLine.Opacity = _listeningVisual
+            ? 0.78 + 0.22 * Math.Abs(Math.Sin(_phase * 1.1))
+            : 0.42 + 0.22 * Math.Abs(Math.Sin(_phase * 0.7));
+        LiveDot.Opacity = 0.45 + 0.55 * Math.Abs(Math.Sin(_phase * 1.3));
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Space)
         {
-            _ = ExecuteVoiceScriptAsync("window.shiftVoice?.setListening();");
             StartPtt();
             e.Handled = true;
             return;
@@ -224,5 +144,127 @@ public partial class VoiceFloatingWindow : Window
             EndPtt();
             e.Handled = true;
         }
+    }
+
+    private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && IsInPttButton(source))
+        {
+            return;
+        }
+
+        Activate();
+        _dragging = true;
+        _movedWhileDragging = false;
+        _lastScreenPoint = PointToScreen(e.GetPosition(this));
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void Window_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_dragging || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var current = PointToScreen(e.GetPosition(this));
+        var dx = current.X - _lastScreenPoint.X;
+        var dy = current.Y - _lastScreenPoint.Y;
+        if (Math.Abs(dx) > 0.01 || Math.Abs(dy) > 0.01)
+        {
+            MoveWindow(dx, dy);
+            _movedWhileDragging = true;
+        }
+        _lastScreenPoint = current;
+        e.Handled = true;
+    }
+
+    private void Window_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _dragging = false;
+        ReleaseMouseCapture();
+        if (!_movedWhileDragging)
+        {
+            ToggleExpanded();
+        }
+        e.Handled = true;
+    }
+
+    private void MoveWindow(double dx, double dy)
+    {
+        var area = SystemParameters.WorkArea;
+        Left = Math.Clamp(Left + dx, area.Left, Math.Max(area.Left, area.Right - Width));
+        Top = Math.Clamp(Top + dy, area.Top, Math.Max(area.Top, area.Bottom - Height));
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _animationTimer.Stop();
+        base.OnClosed(e);
+    }
+
+    private void ToggleExpanded()
+    {
+        _expanded = !_expanded;
+        ApplySize();
+    }
+
+    private void ApplySize()
+    {
+        var oldRight = Left + Width;
+        var oldBottom = Top + Height;
+        Width = _expanded ? ExpandedWidth : CompactWidth;
+        Height = _expanded ? ExpandedHeight : CompactHeight;
+        WaveBox.Height = _expanded ? 64 : 22;
+        TitleText.FontSize = _expanded ? 12 : 10;
+        TitleText.Text = _expanded ? "SHIFT AI · 음성 모드" : "SHIFT AI";
+        SeatText.Visibility = _expanded ? Visibility.Visible : Visibility.Collapsed;
+        TranscriptPanel.Visibility = _expanded ? Visibility.Visible : Visibility.Collapsed;
+        PttButton.Visibility = _expanded ? Visibility.Visible : Visibility.Collapsed;
+        FootText.Visibility = _expanded ? Visibility.Visible : Visibility.Collapsed;
+        MainBorder.Padding = _expanded ? new Thickness(9, 7, 9, 9) : new Thickness(7, 5, 7, 5);
+
+        if (IsLoaded)
+        {
+            var area = SystemParameters.WorkArea;
+            Left = Math.Clamp(oldRight - Width, area.Left, Math.Max(area.Left, area.Right - Width));
+            Top = Math.Clamp(oldBottom - Height, area.Top, Math.Max(area.Top, area.Bottom - Height));
+        }
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        e.Handled = true;
+    }
+
+    private void PttButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        StartPtt();
+        PttButton.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void PttButton_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        PttButton.ReleaseMouseCapture();
+        EndPtt();
+        e.Handled = true;
+    }
+
+    private static bool IsInPttButton(DependencyObject source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement { Name: "PttButton" })
+            {
+                return true;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return false;
     }
 }

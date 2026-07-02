@@ -3,8 +3,10 @@ using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using ShiftAI.Core;
@@ -29,6 +31,10 @@ public partial class MainWindow : Window
     private string _screen = "desktop";
     private bool _voiceMode;
     private bool _pttHold;
+    private bool _soundEnabled;
+    private string _faceMode = "core";
+    private string _personaMode = "standard";
+    private string _agentMode = "hermes";
 
     public MainWindow()
     {
@@ -45,7 +51,12 @@ public partial class MainWindow : Window
         var geminiKey = GeminiKeyProvider.GetApiKey();
         IIntentRouter? geminiRouter = string.IsNullOrWhiteSpace(geminiKey)
             ? null
-            : new GeminiIntentRouter(new HttpClient { Timeout = TimeSpan.FromSeconds(4) }, geminiKey, menu, settings);
+            : new GeminiIntentRouter(
+                new HttpClient { Timeout = TimeSpan.FromSeconds(4) },
+                geminiKey,
+                menu,
+                settings,
+                () => _personaMode);
 
         var router = new CompositeIntentRouter(localRouter, geminiRouter);
         var log = new JsonlActionLog(Path.Combine(root, "logs", "actions.jsonl"));
@@ -56,17 +67,44 @@ public partial class MainWindow : Window
         SetStatus(AgentStatus.Idle);
         AddAssistant($"{settings.AgentName} 설정을 불러왔습니다. 음식 주문은 말로 요청하고, 애매하면 후보를 선택해 주세요.");
         _gameConversation.Add("Shift AI  게임은 계속하세요. 필요한 주문만 빠르게 처리할게요.");
-        FooterVoiceStatus.Text = $"{_voiceEngineStatus} · BACKGROUND GETO CONTROL";
+        FooterVoiceStatus.Text = "SHIFT + V 를 누르면 언제든 음성으로 전환됩니다";
         VoiceEngineText.Text = _voiceEngineStatus;
         _ = InitializeFaceWebViewAsync();
+        UpdateHudButtons();
         ShowDesktop();
-        Dispatcher.BeginInvoke(EnterVoice, DispatcherPriority.ApplicationIdle);
     }
 
     protected override void OnClosed(EventArgs e)
     {
         _speech.Dispose();
         base.OnClosed(e);
+    }
+
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Maximized;
+        UpdateWindowChromeState();
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(520))
+        {
+            EasingFunction = ease
+        });
+
+        RootShellScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(.985, 1, TimeSpan.FromMilliseconds(620))
+        {
+            EasingFunction = ease
+        });
+        RootShellScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(.985, 1, TimeSpan.FromMilliseconds(620))
+        {
+            EasingFunction = ease
+        });
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        UpdateWindowChromeState();
     }
 
     private async Task InitializeFaceWebViewAsync()
@@ -77,8 +115,17 @@ public partial class MainWindow : Window
             FaceWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             FaceWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
 
+            FaceWebView.NavigationCompleted += async (_, _) =>
+            {
+                await SyncFaceHudAsync();
+            };
+
             var facePath = Path.Combine(AppContext.BaseDirectory, "Assets", "shift-face.html");
-            FaceWebView.Source = new Uri(facePath);
+            var faceUri = new UriBuilder(new Uri(facePath))
+            {
+                Query = $"v={File.GetLastWriteTimeUtc(facePath).Ticks}"
+            };
+            FaceWebView.Source = faceUri.Uri;
         }
         catch (Exception ex)
         {
@@ -114,8 +161,8 @@ public partial class MainWindow : Window
         try
         {
             var response = await _executor.ExecuteAsync(text);
-            RenderResponse(response);
-            SpeakAndToast(response.AssistantText);
+            var assistantText = RenderResponse(response);
+            SpeakAndToast(assistantText);
         }
         catch (Exception ex)
         {
@@ -133,14 +180,15 @@ public partial class MainWindow : Window
     {
         AddUser($"{item.Name} 선택");
         var response = await _executor.SelectMenuItemAsync(item, _pendingQuantity, _pendingText);
-        RenderResponse(response);
-        SpeakAndToast(response.AssistantText);
+        var assistantText = RenderResponse(response);
+        SpeakAndToast(assistantText);
     }
 
-    private void RenderResponse(AgentResponse response)
+    private string RenderResponse(AgentResponse response)
     {
         SetStatus(response.Status);
-        AddAssistant(response.AssistantText);
+        var assistantText = ApplyPersona(response.AssistantText, response);
+        AddAssistant(assistantText);
 
         CandidatePanel.Children.Clear();
         if (response.Candidates is { Count: > 0 })
@@ -149,44 +197,243 @@ public partial class MainWindow : Window
             _pendingText = response.UserText;
             foreach (var candidate in response.Candidates)
             {
-                var button = new WpfButton
-                {
-                    Content = $"{candidate.Name} - {candidate.Price.ToString("N0", CultureInfo.InvariantCulture)}원",
-                    Tag = candidate,
-                    Margin = new Thickness(0, 0, 8, 8)
-                };
-                button.Click += async (_, _) => await SelectCandidateAsync((MenuModel)button.Tag);
-                CandidatePanel.Children.Add(button);
+                var label = $"{candidate.Name}  {candidate.Price.ToString("N0", CultureInfo.InvariantCulture)}원";
+                CandidatePanel.Children.Add(CreateCommandChip(label, async () => await SelectCandidateAsync(candidate)));
             }
         }
+
+        return assistantText;
     }
 
     private void AddSampleButtons()
     {
-        string[] commands =
+        (string Label, string Command)[] commands =
         [
-            "롤 켜줘",
-            "콜라 하나 추가해",
-            "라면 시켜줘",
-            "주문 상태",
-            "시간 얼마나 남았어?",
-            "직원 불러줘",
-            "소리 안 나와",
-            "취소",
-            "주문해"
+            ("⚔ 롤 실행", "롤 실행해줘"),
+            ("🎮 게임 추천", "할만한 게임 추천해줘"),
+            ("☕ 아아 주문", "아이스티 하나 추가해"),
+            ("🍜 라면 주문", "라면 시켜줘"),
+            ("📦 주문 상태", "주문 상태 알려줘"),
+            ("⏳ 남은 시간·요금", "남은 시간이랑 요금 알려줘"),
+            ("▶ OTT 재생", "OTT 틀어줘"),
+            ("🖨 프린트", "이 화면 컬러로 3장 출력해줘"),
+            ("⏱ 시간 충전", "시간 1시간 충전해줘"),
+            ("↔ 자리 이동", "창가 자리로 옮기고 싶어"),
+            ("👥 친구랑 자리 붙기", "친구랑 자리 붙여줘"),
+            ("💡 조도 조절", "조명 좀 어둡게 해줘"),
+            ("🔔 직원 호출", "직원 호출해줘"),
+            ("★ 멤버십·적립", "내 적립 포인트 알려줘"),
+            ("🎓 EDU·해커톤", "해커톤 세션 들어갈래")
         ];
 
-        foreach (var command in commands)
+        foreach (var (label, command) in commands)
         {
-            var button = new WpfButton { Content = command };
-            button.Click += async (_, _) => await ExecuteCommandAsync(command);
-            SampleCommandPanel.Children.Add(button);
+            SampleCommandPanel.Children.Add(CreateCommandChip(label, async () => await ExecuteCommandAsync(command)));
         }
+    }
+
+    private Border CreateCommandChip(string label, Func<Task> action)
+    {
+        var parts = SplitChipLabel(label);
+        var textPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        if (!string.IsNullOrEmpty(parts.Icon))
+        {
+            textPanel.Children.Add(new TextBlock
+            {
+                Text = parts.Icon,
+                Foreground = new SolidColorBrush(MediaColor.FromRgb(34, 240, 255)),
+                FontFamily = new FontFamily("Segoe UI Emoji"),
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        textPanel.Children.Add(new TextBlock
+        {
+            Text = parts.Text,
+            Foreground = new SolidColorBrush(MediaColor.FromRgb(34, 240, 255)),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var chip = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = new SolidColorBrush(MediaColor.FromArgb(96, 34, 240, 255)),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(MediaColor.FromArgb(14, 34, 240, 255)),
+            Padding = new Thickness(13, 7, 13, 7),
+            Margin = new Thickness(4, 4, 4, 4),
+            MinHeight = 32,
+            Cursor = Cursors.Hand,
+            Child = textPanel
+        };
+
+        chip.MouseEnter += (_, _) =>
+        {
+            chip.Background = new SolidColorBrush(MediaColor.FromRgb(34, 240, 255));
+            foreach (var child in textPanel.Children.OfType<TextBlock>())
+            {
+                child.Foreground = new SolidColorBrush(MediaColor.FromRgb(4, 18, 26));
+            }
+        };
+        chip.MouseLeave += (_, _) =>
+        {
+            chip.Background = new SolidColorBrush(MediaColor.FromArgb(14, 34, 240, 255));
+            foreach (var child in textPanel.Children.OfType<TextBlock>())
+            {
+                child.Foreground = new SolidColorBrush(MediaColor.FromRgb(34, 240, 255));
+            }
+        };
+        chip.MouseLeftButtonUp += async (_, e) =>
+        {
+            e.Handled = true;
+            await action();
+        };
+
+        return chip;
+    }
+
+    private static (string Icon, string Text) SplitChipLabel(string label)
+    {
+        var index = label.IndexOf(' ');
+        if (index <= 0)
+        {
+            return ("", label);
+        }
+
+        var icon = label[..index];
+        var text = label[(index + 1)..];
+        return (icon, text);
     }
 
     private void OpenChatButton_Click(object sender, RoutedEventArgs e)
     {
         ShowChat();
+    }
+
+    private async void FaceCoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        _faceMode = "core";
+        UpdateHudButtons();
+        await SyncFaceHudAsync();
+    }
+
+    private async void FaceCrtButton_Click(object sender, RoutedEventArgs e)
+    {
+        _faceMode = "term";
+        UpdateHudButtons();
+        await SyncFaceHudAsync();
+    }
+
+    private async void PersonaStandardButton_Click(object sender, RoutedEventArgs e)
+    {
+        _personaMode = "standard";
+        UpdateHudButtons();
+        await SyncFaceHudAsync();
+        AddAssistant("페르소나: 정중하고 차분한 안내");
+    }
+
+    private async void PersonaGamerButton_Click(object sender, RoutedEventArgs e)
+    {
+        _personaMode = "gamer";
+        UpdateHudButtons();
+        await SyncFaceHudAsync();
+        AddAssistant("페르소나: 활기차지만 정중한 게이머 친화 모드");
+    }
+
+    private async void PersonaFocusButton_Click(object sender, RoutedEventArgs e)
+    {
+        _personaMode = "focus";
+        UpdateHudButtons();
+        await SyncFaceHudAsync();
+        AddAssistant("페르소나: 간결한 집중 모드");
+    }
+
+    private void AgentHermesButton_Click(object sender, RoutedEventArgs e)
+    {
+        _agentMode = "hermes";
+        UpdateHudButtons();
+        ShowToast("Hermes Agent");
+    }
+
+    private void AgentLocalButton_Click(object sender, RoutedEventArgs e)
+    {
+        _agentMode = "local";
+        UpdateHudButtons();
+        ShowToast("Local Router");
+    }
+
+    private void SoundToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _soundEnabled = !_soundEnabled;
+        _speech.Enabled = _soundEnabled;
+        SoundToggleButton.Content = _soundEnabled ? "🔊 소리 끄기" : "🔇 소리 켜기";
+        SoundToggleButton.Foreground = _soundEnabled
+            ? new SolidColorBrush(MediaColor.FromRgb(34, 240, 255))
+            : new SolidColorBrush(MediaColor.FromRgb(95, 117, 150));
+        SoundToggleButton.BorderBrush = _soundEnabled
+            ? new SolidColorBrush(MediaColor.FromRgb(34, 240, 255))
+            : new SolidColorBrush(MediaColor.FromArgb(90, 34, 240, 255));
+
+        if (_soundEnabled)
+        {
+            ShowToast("소리 켜짐");
+            _speech.Speak("소리 켜짐");
+        }
+        else
+        {
+            ShowToast("소리 꺼짐");
+        }
+    }
+
+    private void MinimizeWindowButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void RestoreWindowButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+        UpdateWindowChromeState();
+    }
+
+    private void CloseWindowButton_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void ChromeDragArea_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (e.ClickCount == 2)
+        {
+            RestoreWindowButton_Click(sender, e);
+            return;
+        }
+
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // DragMove can throw if the mouse is released during the handoff.
+        }
     }
 
     private void OpenVoiceButton_Click(object sender, RoutedEventArgs e)
@@ -259,9 +506,10 @@ public partial class MainWindow : Window
 
         var response = await _executor.ExecuteAsync(text);
         SetStatus(response.Status);
-        _gameConversation.Add($"Shift AI  {response.AssistantText}");
+        var assistantText = ApplyPersona(response.AssistantText, response);
+        _gameConversation.Add($"Shift AI  {assistantText}");
         GameConversationList.ScrollIntoView(_gameConversation[^1]);
-        SpeakAndToast(response.AssistantText);
+        SpeakAndToast(assistantText);
 
         if (response.Candidates is { Count: > 0 })
         {
@@ -322,6 +570,13 @@ public partial class MainWindow : Window
                 EnterVoice();
             }
 
+            e.Handled = true;
+            return;
+        }
+
+        if (_screen == "desktop" && e.Key == Key.Enter)
+        {
+            ShowChat();
             e.Handled = true;
             return;
         }
@@ -449,7 +704,8 @@ public partial class MainWindow : Window
         PttButton.Content = "누르는 동안 듣기 (SPACE)";
         VoiceWidget.Visibility = Visibility.Collapsed;
         HideVoiceWindow();
-        WindowState = WindowState.Normal;
+        WindowState = WindowState.Maximized;
+        UpdateWindowChromeState();
         Activate();
         ShowToast("음성 모드 OFF");
     }
@@ -498,6 +754,15 @@ public partial class MainWindow : Window
         _pttHold = false;
         PttButton.Content = "누르는 동안 듣기 (SPACE)";
         var voiceText = await _voiceInput.ListenOnceAsync();
+        if (string.IsNullOrWhiteSpace(voiceText))
+        {
+            const string retryMessage = "음성을 인식하지 못했어요. 다시 말해 주세요.";
+            VoiceTranscript.Text = retryMessage;
+            _voiceWindow?.SetTranscript(retryMessage);
+            ShowToast(retryMessage);
+            return;
+        }
+
         VoiceTranscript.Text = $"\"{voiceText}\"";
         _voiceWindow?.SetTranscript(voiceText);
         await ExecuteCommandAsync(voiceText);
@@ -513,6 +778,72 @@ public partial class MainWindow : Window
     {
         _conversation.Add($"Shift AI  {text}");
         ConversationList.ScrollIntoView(_conversation[^1]);
+    }
+
+    private string ApplyPersona(string text, AgentResponse response)
+    {
+        return _personaMode switch
+        {
+            "gamer" => ApplyGamerPersona(text, response),
+            "focus" => ApplyFocusPersona(text, response),
+            _ => ApplyStandardPersona(text, response)
+        };
+    }
+
+    private static string ApplyStandardPersona(string text, AgentResponse response)
+    {
+        return response.Status switch
+        {
+            AgentStatus.NeedsClarification when response.Candidates is { Count: > 0 } =>
+                "원하시는 메뉴를 선택해 주세요. 후보 중 하나를 고르면 장바구니에 담아두겠습니다.",
+            AgentStatus.Completed when text.Contains("시킬게", StringComparison.Ordinal) =>
+                "확인했습니다. 주문 후보를 장바구니에 담았습니다.",
+            _ => text
+        };
+    }
+
+    private static string ApplyGamerPersona(string text, AgentResponse response)
+    {
+        return response.Status switch
+        {
+            AgentStatus.NeedsClarification when response.Candidates is { Count: > 0 } =>
+                "좋아요. 라면 종류만 골라 주세요. 게임 흐름 끊기지 않게 바로 담아둘게요.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.AddFood =>
+                "좋아요, 담아둘게요. 확정하려면 주문해라고 말해 주세요.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.LaunchGame =>
+                "좋아요. 바로 실행합니다. 좋은 게임 되세요.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.CallStaff =>
+                "직원 호출 넣었습니다. 잠깐만 기다려 주세요.",
+            _ => text.StartsWith("아직", StringComparison.Ordinal)
+                ? "아직은 처리 못 하는 명령이에요. 주문, 직원 호출, 소리 문제, 롤 실행, 남은 시간 조회를 말해 주세요."
+                : text
+        };
+    }
+
+    private static string ApplyFocusPersona(string text, AgentResponse response)
+    {
+        return response.Status switch
+        {
+            AgentStatus.NeedsClarification when response.Candidates is { Count: > 0 } =>
+                "메뉴를 선택해 주세요.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.AddFood =>
+                "담았습니다. 확정은 주문해.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.PlaceOrder =>
+                "주문 접수 완료.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.CallStaff =>
+                "직원 호출 완료.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.TroubleshootAudio =>
+                "오디오 점검 요청 완료.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.LaunchGame =>
+                "실행합니다.",
+            AgentStatus.Completed when response.Route.Intent == IntentType.GetRemainingTime =>
+                text,
+            AgentStatus.Cancelled =>
+                "취소했습니다.",
+            _ => text.StartsWith("아직", StringComparison.Ordinal)
+                ? "처리할 수 없습니다. 다른 명령을 말해 주세요."
+                : text
+        };
     }
 
     private void SpeakAndToast(string message)
@@ -554,6 +885,63 @@ public partial class MainWindow : Window
             AgentStatus.NeedsClarification => new SolidColorBrush(MediaColor.FromRgb(47, 83, 138)),
             _ => new SolidColorBrush(MediaColor.FromRgb(37, 52, 73))
         };
+    }
+
+    private async Task SyncFaceHudAsync()
+    {
+        if (FaceWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await FaceWebView.ExecuteScriptAsync(
+                $"window.shiftFace?.setFace('{_faceMode}'); window.shiftFace?.setPersona('{_personaMode}');");
+        }
+        catch
+        {
+            // Visual sync only.
+        }
+    }
+
+    private void UpdateHudButtons()
+    {
+        SetSegmentButton(FaceCoreButton, _faceMode == "core", "cyan");
+        SetSegmentButton(FaceCrtButton, _faceMode == "term" || _faceMode == "crt", "cyan");
+
+        SetSegmentButton(PersonaStandardButton, _personaMode == "standard", "magenta");
+        SetSegmentButton(PersonaGamerButton, _personaMode == "gamer", "magenta");
+        SetSegmentButton(PersonaFocusButton, _personaMode == "focus", "magenta");
+
+        SetSegmentButton(AgentHermesButton, _agentMode == "hermes", "cyan");
+        SetSegmentButton(AgentLocalButton, _agentMode == "local", "cyan");
+    }
+
+    private void SetSegmentButton(WpfButton button, bool active, string accent)
+    {
+        var activeColor = accent == "magenta"
+            ? MediaColor.FromRgb(255, 62, 200)
+            : MediaColor.FromRgb(34, 240, 255);
+
+        button.Background = active
+            ? new SolidColorBrush(activeColor)
+            : Brushes.Transparent;
+        button.Foreground = active
+            ? new SolidColorBrush(MediaColor.FromRgb(4, 18, 26))
+            : new SolidColorBrush(MediaColor.FromRgb(95, 117, 150));
+        button.BorderBrush = new SolidColorBrush(MediaColor.FromArgb(90, 34, 240, 255));
+        button.FontWeight = active ? FontWeights.Bold : FontWeights.Normal;
+    }
+
+    private void UpdateWindowChromeState()
+    {
+        if (RestoreWindowButton is null)
+        {
+            return;
+        }
+
+        RestoreWindowButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
     }
 
     private static string FindWorkspaceRoot()

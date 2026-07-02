@@ -4,7 +4,12 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Shift AI" Height="900" Width="1024" MinHeight="760" MinWidth="860"
         Background="#05060D" WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Opacity="0"
         FontFamily="Consolas"
+        Loaded="Window_Loaded"
         PreviewKeyDown="Window_PreviewKeyDown"
         PreviewKeyUp="Window_PreviewKeyUp">
     <Window.Resources>
@@ -102,6 +107,43 @@
             <Setter Property="CaretBrush" Value="{StaticResource CyanBrush}"/>
         </Style>
 
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="MinWidth" Value="8"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent">
+                            <Border Width="1" HorizontalAlignment="Center" Background="#3322F0FF"/>
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton IsHitTestVisible="False" Opacity="0" Height="0"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton IsHitTestVisible="False" Opacity="0" Height="0"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Width="5"
+                                                        HorizontalAlignment="Center"
+                                                        CornerRadius="3"
+                                                        Background="#8822F0FF"
+                                                        BorderBrush="#AA22F0FF"
+                                                        BorderThickness="1"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="ListBox">
             <Setter Property="Foreground" Value="{StaticResource InkBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
@@ -109,6 +151,7 @@
             <Setter Property="FontFamily" Value="Consolas"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
         </Style>
 
         <Style TargetType="ListBoxItem">
@@ -125,9 +168,149 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="EscCircleButton" TargetType="Button">
+            <Setter Property="Width" Value="68"/>
+            <Setter Property="Height" Value="68"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="18"/>
+            <Setter Property="Foreground" Value="{StaticResource MagentaBrush}"/>
+            <Setter Property="Background" Value="#14FF3EC8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MagentaBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="34">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource MagentaBrush}"/>
+                                <Setter Property="Foreground" Value="#15030F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WindowChromeButton" TargetType="Button">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background" Value="#AA070A16"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="FontFamily" Value="Segoe UI Symbol"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3322F0FF"/>
+                                <Setter Property="Foreground" Value="{StaticResource CyanBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SegmentButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource DimBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="11,7"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SegmentButtonFirst" TargetType="Button" BasedOn="{StaticResource SegmentButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="0"
+                                CornerRadius="6,0,0,6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SegmentButtonMiddle" TargetType="Button" BasedOn="{StaticResource SegmentButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1,0,0,0"
+                                CornerRadius="0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SegmentButtonLast" TargetType="Button" BasedOn="{StaticResource SegmentButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1,0,0,0"
+                                CornerRadius="0,6,6,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <Grid ClipToBounds="True">
+    <Grid x:Name="RootShell" ClipToBounds="True" RenderTransformOrigin=".5,.5">
+        <Grid.RenderTransform>
+            <ScaleTransform x:Name="RootShellScale" ScaleX=".985" ScaleY=".985"/>
+        </Grid.RenderTransform>
         <Grid.Background>
             <RadialGradientBrush Center="0.70,0.20" GradientOrigin="0.70,0.20" RadiusX="0.90" RadiusY="0.70">
                 <GradientStop Color="#22FF3EC8" Offset="0"/>
@@ -167,15 +350,9 @@
             <Border Background="#88020308" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
-                    <Border Width="72" Height="62" Margin="7" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1" CornerRadius="12" Background="#1022F0FF">
-                        <TextBlock Text="SHIFT" Foreground="{StaticResource CyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16"/>
-                    </Border>
-                    <Border Width="72" Height="62" Margin="7" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1" CornerRadius="12" Background="#1022F0FF">
-                        <TextBlock Text="A" Foreground="{StaticResource CyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28"/>
-                    </Border>
-                    <Border Width="72" Height="62" Margin="7" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1" CornerRadius="12" Background="#1022F0FF">
-                        <TextBlock Text="I" Foreground="{StaticResource CyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="28"/>
-                    </Border>
+                    <Button Content="SHIFT" Width="72" Height="62" Margin="7" FontSize="16" Click="OpenChatButton_Click"/>
+                    <Button Content="A" Width="72" Height="62" Margin="7" FontSize="28" Click="OpenChatButton_Click"/>
+                    <Button Content="I" Width="72" Height="62" Margin="7" FontSize="28" Click="OpenChatButton_Click"/>
                 </StackPanel>
                 <TextBlock Text="SHIFT + A + I 로 Shift AI 호출" Foreground="{StaticResource InkBrush}" FontSize="15" HorizontalAlignment="Center"/>
                 <TextBlock Text="게임 중에는 같은 키로 슬라이드 패널을 엽니다" Foreground="{StaticResource DimBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,18,0,0"/>
@@ -192,13 +369,19 @@
         <!-- Chat screen -->
         <Grid x:Name="ChatScreen" Visibility="Collapsed">
             <Grid.RowDefinitions>
-                <RowDefinition Height="80"/>
+                <RowDefinition Height="104"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="194"/>
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0">
-                <Button Content="ESC" Width="62" Height="62" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="22" BorderBrush="{StaticResource MagentaBrush}" Foreground="{StaticResource MagentaBrush}" Click="BackButton_Click"/>
+                <Border Background="Transparent" MouseLeftButtonDown="ChromeDragArea_MouseLeftButtonDown"/>
+                <Button Style="{StaticResource EscCircleButton}" HorizontalAlignment="Left" VerticalAlignment="Top" Click="BackButton_Click">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="ESC" HorizontalAlignment="Center" FontSize="13" LineHeight="16"/>
+                        <TextBlock Text="대기화면" HorizontalAlignment="Center" FontSize="8" LineHeight="10" Foreground="{StaticResource DimBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Button>
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" Opacity=".74" Visibility="Collapsed">
                     <TextBlock Text="SHIFT" Foreground="{StaticResource CyanBrush}" FontSize="46" FontWeight="Bold" HorizontalAlignment="Center">
                         <TextBlock.Effect>
@@ -208,51 +391,37 @@
                     <TextBlock Text="GAMING ZONE · SEAT 38" Foreground="{StaticResource DimBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,20,22,0">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,40,24,0">
                     <StackPanel Margin="0,0,18,0">
                         <TextBlock Text="로봇 페이스" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
-                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Margin="0,6,0,0">
+                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="7" Margin="0,6,0,0" ClipToBounds="True">
                             <StackPanel Orientation="Horizontal">
-                                <Border Background="{StaticResource CyanBrush}" Padding="11,7" CornerRadius="7,0,0,7">
-                                    <TextBlock Text="코어" Foreground="#04121A" FontSize="11" FontWeight="Bold"/>
-                                </Border>
-                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
-                                    <TextBlock Text="CRT" Foreground="{StaticResource DimBrush}" FontSize="11"/>
-                                </Border>
+                                <Button x:Name="FaceCoreButton" Style="{StaticResource SegmentButtonFirst}" Content="코어" Click="FaceCoreButton_Click"/>
+                                <Button x:Name="FaceCrtButton" Style="{StaticResource SegmentButtonLast}" Content="CRT" Click="FaceCrtButton_Click"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
                     <StackPanel Margin="0,0,18,0">
                         <TextBlock Text="AI 페르소나" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
-                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Margin="0,6,0,0">
+                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="7" Margin="0,6,0,0" ClipToBounds="True">
                             <StackPanel Orientation="Horizontal">
-                                <Border Background="{StaticResource MagentaBrush}" Padding="11,7" CornerRadius="7,0,0,7">
-                                    <TextBlock Text="표준" Foreground="#15030F" FontSize="11" FontWeight="Bold"/>
-                                </Border>
-                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
-                                    <TextBlock Text="게이머" Foreground="{StaticResource DimBrush}" FontSize="11"/>
-                                </Border>
-                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
-                                    <TextBlock Text="집중" Foreground="{StaticResource DimBrush}" FontSize="11"/>
-                                </Border>
+                                <Button x:Name="PersonaStandardButton" Style="{StaticResource SegmentButtonFirst}" Content="표준" Click="PersonaStandardButton_Click"/>
+                                <Button x:Name="PersonaGamerButton" Style="{StaticResource SegmentButtonMiddle}" Content="게이머" Click="PersonaGamerButton_Click"/>
+                                <Button x:Name="PersonaFocusButton" Style="{StaticResource SegmentButtonLast}" Content="집중" Click="PersonaFocusButton_Click"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                    <StackPanel Margin="0,0,18,0">
+                    <StackPanel Visibility="Collapsed" Margin="0,0,18,0">
                         <TextBlock Text="PERSONA" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
-                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Margin="0,6,0,0">
+                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="7" Margin="0,6,0,0">
                             <StackPanel Orientation="Horizontal">
-                                <Border Background="{StaticResource CyanBrush}" Padding="11,7" CornerRadius="7,0,0,7">
-                                    <TextBlock Text="HERMES" Foreground="#04121A" FontSize="11" FontWeight="Bold"/>
-                                </Border>
-                                <Border Padding="11,7" BorderBrush="{StaticResource LineBrush}" BorderThickness="1,0,0,0">
-                                    <TextBlock Text="LOCAL" Foreground="{StaticResource DimBrush}" FontSize="11"/>
-                                </Border>
+                                <Button x:Name="AgentHermesButton" Style="{StaticResource SegmentButton}" Content="HERMES" Click="AgentHermesButton_Click"/>
+                                <Button x:Name="AgentLocalButton" Style="{StaticResource SegmentButton}" Content="LOCAL" Click="AgentLocalButton_Click"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
 
-                    <StackPanel>
+                    <StackPanel Visibility="Collapsed">
                         <TextBlock Text="STATE" Foreground="{StaticResource DimBrush}" FontSize="9" HorizontalAlignment="Right"/>
                         <Border x:Name="StatusBadge" Background="#172534" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="14,7" Margin="0,6,0,0">
                             <TextBlock x:Name="StatusText" Text="idle" Foreground="{StaticResource InkBrush}" FontSize="11" FontWeight="Bold"/>
@@ -497,8 +666,8 @@
                     </Border>
 
                     <DockPanel Width="860" HorizontalAlignment="Center" Margin="0,7,0,0">
-                        <TextBlock x:Name="FooterVoiceStatus" Text="VOICE READY · BACKGROUND GETO CONTROL" DockPanel.Dock="Right" Foreground="{StaticResource MagentaBrush}" FontSize="11"/>
-                        <TextBlock Text="ENTER TO RUN · SHIFT AI SEAT AGENT" Foreground="{StaticResource DimBrush}" FontSize="11"/>
+                        <TextBlock x:Name="FooterVoiceStatus" Text="SHIFT + V 를 누르면 언제든 음성으로 전환됩니다" DockPanel.Dock="Right" Foreground="{StaticResource MagentaBrush}" FontSize="11"/>
+                        <TextBlock Text="ENTER TO RUN · ESC 대기화면 · SHIFT AI SEAT AGENT" Foreground="{StaticResource DimBrush}" FontSize="11"/>
                     </DockPanel>
                 </StackPanel>
             </Grid>
@@ -526,7 +695,12 @@
                 <TextBlock Text="IN-GAME MODE · FOCUS SAFE" Foreground="{StaticResource DimBrush}" FontSize="12"/>
             </Border>
             <Button Content="OPEN PANEL" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,80" Click="OpenGamePanelButton_Click"/>
-            <Button Content="ESC" Width="62" Height="62" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="22" BorderBrush="{StaticResource MagentaBrush}" Foreground="{StaticResource MagentaBrush}" Click="BackButton_Click"/>
+            <Button Style="{StaticResource EscCircleButton}" HorizontalAlignment="Left" VerticalAlignment="Top" Click="BackButton_Click">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="ESC" HorizontalAlignment="Center" FontSize="13" LineHeight="16"/>
+                    <TextBlock Text="대기화면" HorizontalAlignment="Center" FontSize="8" LineHeight="10" Foreground="{StaticResource DimBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Button>
 
             <Border x:Name="GamePanel" Width="380" HorizontalAlignment="Right" Visibility="Collapsed" Background="#EE050812" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1,0,0,0">
                 <Grid>
@@ -592,6 +766,32 @@
                 <TextBlock x:Name="ToastText" Text="" Foreground="{StaticResource InkBrush}" FontSize="13" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
+
+        <Button x:Name="SoundToggleButton"
+                Content="🔇 소리 켜기"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                Margin="22,0,0,58"
+                Padding="9,7"
+                BorderBrush="{StaticResource LineBrush}"
+                Foreground="{StaticResource DimBrush}"
+                Panel.ZIndex="80"
+                Click="SoundToggleButton_Click"/>
+
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Panel.ZIndex="120">
+            <Button Style="{StaticResource WindowChromeButton}" Content="─" Click="MinimizeWindowButton_Click"/>
+            <Button x:Name="RestoreWindowButton" Style="{StaticResource WindowChromeButton}" Content="❐" Click="RestoreWindowButton_Click"/>
+            <Button Style="{StaticResource WindowChromeButton}" Content="×" Click="CloseWindowButton_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="0"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+        </StackPanel>
 
         <Rectangle Fill="{StaticResource ScanlineBrush}" Opacity=".60" IsHitTestVisible="False" Panel.ZIndex="90"/>
     </Grid>

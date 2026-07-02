@@ -12,23 +12,33 @@ public sealed class GeminiIntentRouter : IIntentRouter
     private readonly IReadOnlyList<MenuItem> _menu;
     private readonly MenuMatcher _matcher;
     private readonly HermesAgentSettings _settings;
+    private readonly Func<string> _personaProvider;
 
-    public GeminiIntentRouter(HttpClient httpClient, string apiKey, IReadOnlyList<MenuItem> menu, HermesAgentSettings settings)
+    public GeminiIntentRouter(
+        HttpClient httpClient,
+        string apiKey,
+        IReadOnlyList<MenuItem> menu,
+        HermesAgentSettings settings,
+        Func<string>? personaProvider = null)
     {
         _httpClient = httpClient;
         _apiKey = apiKey;
         _menu = menu;
         _matcher = new MenuMatcher(menu);
         _settings = settings;
+        _personaProvider = personaProvider ?? (() => "standard");
     }
 
     public async Task<IntentRoute> RouteAsync(string text, CartSnapshot cart, bool awaitingConfirmation, CancellationToken cancellationToken = default)
     {
         var menuText = string.Join(", ", _menu.Select(item => $"{item.Name}:{item.Price}"));
         var policyText = string.Join("\n- ", _settings.OrderingPolicy);
+        var personaPrompt = BuildPersonaPrompt(_personaProvider());
         var prompt =
             $"You are {_settings.AgentName}, the LLM routing brain for {_settings.ProductName}.\n" +
             "You are an intent classifier for a Korean PC cafe seat agent.\n" +
+            "Persona mode is used for understanding user tone, but your output must still be strict JSON.\n" +
+            $"Persona:\n{personaPrompt}\n" +
             "Return strict JSON only with this schema:\n" +
             "{\"intent\":\"AddFood|PlaceOrder|CallStaff|TroubleshootAudio|LaunchGame|GetRemainingTime|CancelCurrentAction|Unknown\",\"menuName\":null|string,\"quantity\":number,\"gameName\":null|string}\n" +
             "Policy:\n" +
@@ -73,6 +83,28 @@ public sealed class GeminiIntentRouter : IIntentRouter
         }
 
         return new IntentRoute(intent, text, Math.Max(1, parsed.Quantity), item, GameName: parsed.GameName);
+    }
+
+    private static string BuildPersonaPrompt(string persona)
+    {
+        return persona switch
+        {
+            "gamer" =>
+                "- Mode name: 페르소나: 활기차지만 정중한 게이머 친화 모드\n" +
+                "- Understand gaming slang and short commands naturally.\n" +
+                "- Be upbeat and quick, but never childish or noisy.\n" +
+                "- Keep food-order safety rules strict even when the user sounds casual.",
+            "focus" =>
+                "- Mode name: 페르소나: 간결한 집중 모드\n" +
+                "- Prefer short, direct, low-distraction interpretation.\n" +
+                "- Avoid chatter. Prioritize the next required action.\n" +
+                "- Keep confirmations minimal and precise.",
+            _ =>
+                "- Mode name: 페르소나: 정중하고 차분한 안내\n" +
+                "- Interpret Korean PC cafe requests politely and calmly.\n" +
+                "- Use neutral service language.\n" +
+                "- Ask for clarification when commands are ambiguous."
+        };
     }
 
     private static string ExtractModelText(string responseText)

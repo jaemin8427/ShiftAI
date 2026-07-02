@@ -87,6 +87,23 @@
       color:var(--dim);
       font-size:11px;
     }
+    .close{
+      position:relative;
+      z-index:3;
+      width:18px;
+      height:18px;
+      border:0;
+      border-radius:50%;
+      background:transparent;
+      color:var(--dim);
+      font:13px/18px var(--mono);
+      padding:0;
+      cursor:pointer;
+    }
+    .close:hover{
+      color:var(--magenta);
+      background:rgba(255,62,200,.12);
+    }
     .hint{
       display:none;
       color:var(--magenta);
@@ -206,6 +223,7 @@
       <div class="title"><span class="dot"></span><span>SHIFT AI · 음성 모드</span></div>
       <div class="hint">CLICK</div>
       <div class="seat" id="seat">PC-38</div>
+      <button class="close" id="closeBtn" type="button">×</button>
     </header>
     <div class="wavebox">
       <canvas id="wave"></canvas>
@@ -224,11 +242,13 @@
     const transcript = document.querySelector('#transcript');
     const ptt = document.querySelector('#ptt');
     const seat = document.querySelector('#seat');
+    const dragRegion = document.querySelector('#dragRegion');
+    const closeBtn = document.querySelector('#closeBtn');
     let listening = false;
     let expanded = false;
     let phase = 0;
     let pointerStart = null;
-    let dragPosted = false;
+    let dragMoved = false;
 
     function post(type, payload = {}) {
       vscode?.postMessage({ type, ...payload });
@@ -325,33 +345,41 @@
       post('ptt-end');
     });
     ptt.addEventListener('pointercancel', () => post('ptt-end'));
-
-    document.querySelector('#dragRegion').addEventListener('pointerdown', (event) => {
-      if (event.target.closest('#ptt')) return;
-      pointerStart = { x: event.clientX, y: event.clientY };
-      dragPosted = false;
+    closeBtn.addEventListener('pointerdown', (event) => event.stopPropagation());
+    closeBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      post('close');
     });
-    document.querySelector('#dragRegion').addEventListener('pointermove', (event) => {
-      if (event.target.closest('#ptt')) return;
-      if (!pointerStart || dragPosted) return;
+
+    dragRegion.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('#ptt') || event.target.closest('#closeBtn')) return;
+      pointerStart = { x: event.clientX, y: event.clientY };
+      dragMoved = false;
+      dragRegion.setPointerCapture(event.pointerId);
+    });
+    dragRegion.addEventListener('pointermove', (event) => {
+      if (event.target.closest('#ptt') || event.target.closest('#closeBtn')) return;
+      if (!pointerStart) return;
       const dx = event.clientX - pointerStart.x;
       const dy = event.clientY - pointerStart.y;
-      if (Math.hypot(dx, dy) > 5) {
-        dragPosted = true;
-        post('drag');
+      if (Math.hypot(dx, dy) > 3) {
+        dragMoved = true;
+        post('move', { dx: event.movementX || dx, dy: event.movementY || dy });
+        pointerStart = { x: event.clientX, y: event.clientY };
       }
     });
-    document.querySelector('#dragRegion').addEventListener('pointerup', (event) => {
-      if (event.target.closest('#ptt')) return;
-      if (pointerStart && !dragPosted) {
+    dragRegion.addEventListener('pointerup', (event) => {
+      if (event.target.closest('#ptt') || event.target.closest('#closeBtn')) return;
+      if (pointerStart && !dragMoved) {
         post('toggle');
       }
+      try { dragRegion.releasePointerCapture(event.pointerId); } catch {}
       pointerStart = null;
-      dragPosted = false;
+      dragMoved = false;
     });
-    document.querySelector('#dragRegion').addEventListener('pointercancel', () => {
+    dragRegion.addEventListener('pointercancel', () => {
       pointerStart = null;
-      dragPosted = false;
+      dragMoved = false;
     });
 
     document.addEventListener('keydown', (event) => {

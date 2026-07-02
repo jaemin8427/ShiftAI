@@ -5,6 +5,20 @@ namespace ShiftAI.App;
 public sealed class SpeechFeedbackService : IDisposable
 {
     private readonly SpeechSynthesizer _synthesizer = new();
+    private bool _enabled;
+
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            _enabled = value;
+            if (!_enabled)
+            {
+                _synthesizer.SpeakAsyncCancelAll();
+            }
+        }
+    }
 
     public SpeechFeedbackService()
     {
@@ -15,7 +29,7 @@ public sealed class SpeechFeedbackService : IDisposable
 
     public void Speak(string text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (!Enabled || string.IsNullOrWhiteSpace(text))
         {
             return;
         }
