@@ -294,33 +294,34 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
     }
 
     /// <summary>
-    /// Adds the selected product to the cart. Two layouts exist:
-    ///  - Simple products show an inline "담기" button on the card (grid region).
-    ///  - Products with options open a modal whose add button reads "주문목록에 담기" (window center).
-    /// We handle the modal first (it covers the grid), then the inline button, then a ratio fallback.
+    /// Adds the selected product to the cart, handling both layouts:
+    ///  1) Click the inline "담기" on the card.
+    ///  2) Option products then open a modal (샷추가/휘핑 등); click "주문목록에 담기" with default options.
+    /// Simple products are already added after step 1, so step 2 is a no-op for them.
     /// </summary>
     private static void ClickAddButton(IntPtr window, Rectangle bounds)
     {
+        ClickInlineDamgi(bounds);
+        Thread.Sleep(800); // wait for the options modal (option products) or the cart update (simple ones)
+        ClickOptionModalAddIfPresent(window, bounds);
+    }
+
+    private static void ClickInlineDamgi(Rectangle bounds)
+    {
         if (GetoOcr.Available)
         {
-            List<OcrToken> tokens;
+            var gridMaxX = (int)(bounds.Width * 0.72);
+            OcrToken? add;
             using (var capture = CaptureWindow(bounds))
             {
-                tokens = GetoOcr.Read(capture);
+                add = GetoOcr.Read(capture)
+                    .Where(token => token.Bounds.Right < gridMaxX
+                        && Normalize(token.Text).Contains("담기")
+                        && !Normalize(token.Text).Contains("주문목록"))
+                    .OrderBy(token => token.Bounds.Top)
+                    .FirstOrDefault();
             }
 
-            var modalAdd = tokens
-                .Where(token => Normalize(token.Text).Contains("주문목록") || Normalize(token.Text).Contains("목록에담기"))
-                .OrderByDescending(token => token.Bounds.Width)
-                .FirstOrDefault();
-
-            var gridMaxX = (int)(bounds.Width * 0.72);
-            var inlineAdd = tokens
-                .Where(token => token.Bounds.Right < gridMaxX && Normalize(token.Text).Contains("담기"))
-                .OrderBy(token => token.Bounds.Top)
-                .FirstOrDefault();
-
-            var add = modalAdd ?? inlineAdd;
             if (add is not null)
             {
                 GetoDesktopAutomation.Click(new Point(
@@ -331,6 +332,34 @@ public sealed class GetoNativeWmCltAdapter : IGetoOrderAdapter
         }
 
         GetoDesktopAutomation.Click(Ratio(bounds, AddButtonXRatio, AddButtonYRatio));
+    }
+
+    /// <summary>If an option modal is open, click its "주문목록에 담기" button (default options).</summary>
+    private static void ClickOptionModalAddIfPresent(IntPtr window, Rectangle bounds)
+    {
+        if (!GetoOcr.Available)
+        {
+            return;
+        }
+
+        OcrToken? modalAdd;
+        using (var capture = CaptureWindow(bounds))
+        {
+            modalAdd = GetoOcr.Read(capture)
+                .Where(token => Normalize(token.Text).Contains("주문목록") || Normalize(token.Text).Contains("목록에담기"))
+                .OrderByDescending(token => token.Bounds.Width)
+                .FirstOrDefault();
+        }
+
+        if (modalAdd is null)
+        {
+            return; // simple product — already added by the inline 담기 above
+        }
+
+        GetoDesktopAutomation.Click(new Point(
+            bounds.Left + modalAdd.Bounds.Left + modalAdd.Bounds.Width / 2,
+            bounds.Top + modalAdd.Bounds.Top + modalAdd.Bounds.Height / 2));
+        Thread.Sleep(600); // modal close + cart update
     }
 
     /// <summary>
