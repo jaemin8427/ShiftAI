@@ -6,15 +6,34 @@ namespace ShiftAI.App;
 
 public sealed class MockPcCafeAdapter : IPcCafeAdapter
 {
-    private readonly IGetoOrderAdapter[] _getoAdapters =
-    [
-        new GetoNativeOrderAdapter(),
-        new GetoUiAutomationOrderAdapter(),
-        new GetoVisionMouseFallbackOrderAdapter()
-    ];
+    private readonly GetoNativeWmCltAdapter _nativeWmClt = new();
+    private readonly IGetoOrderAdapter[] _getoAdapters;
 
     private readonly GetoMockBackgroundClient _backgroundClient = new();
     private readonly GetoMockAutomation _getoMockAutomation = new();
+
+    public MockPcCafeAdapter()
+    {
+        _getoAdapters =
+        [
+            _nativeWmClt,
+            new GetoNativeOrderAdapter(),
+            new GetoUiAutomationOrderAdapter(),
+            new GetoVisionMouseFallbackOrderAdapter()
+        ];
+    }
+
+    public async Task<ToolResult> OpenFoodSearchAsync(int seatNumber, string keyword, CancellationToken cancellationToken = default)
+    {
+        var result = await _nativeWmClt.OpenAndSearchAsync(keyword, cancellationToken);
+        return new ToolResult(
+            "openFoodSearch",
+            AgentStatus.NeedsClarification,
+            result.Success
+                ? $"'{keyword}' 검색 화면을 열었어요. 화면에서 원하는 메뉴를 눌러 주세요."
+                : $"검색 화면을 열지 못했어요. {result.Message}",
+            new { seatNumber, keyword, opened = result.Success });
+    }
 
     public async Task<ToolResult> OrderFoodAsync(int seatNumber, CartSnapshot cart, CancellationToken cancellationToken = default)
     {
@@ -82,7 +101,9 @@ public sealed class MockPcCafeAdapter : IPcCafeAdapter
         };
 
         var message = getoResult.Success
-            ? mode == "geto-native-adapter"
+            ? mode == "geto-native-wmclt"
+                ? getoResult.Message
+                : mode == "geto-native-adapter"
                 ? $"\uC88C\uC11D {seatNumber}\uBC88 Geto Native Adapter\uC73C\uB85C \uD604\uC7A5 \uCE74\uB4DC \uACB0\uC81C \uC8FC\uBB38\uC744 \uC804\uC1A1\uD588\uC2B5\uB2C8\uB2E4."
                 : mode == "windows-ui-automation"
                 ? $"\uC88C\uC11D {seatNumber}\uBC88 Geto UI Automation\uC73C\uB85C \uC8FC\uBB38\uC744 \uC804\uC1A1\uD588\uC2B5\uB2C8\uB2E4."

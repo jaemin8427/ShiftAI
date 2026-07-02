@@ -71,6 +71,14 @@ public sealed class HermesSkillToolRegistry
             "확정 대기 중인 장바구니를 PC방 음식 주문 시스템에 담습니다.",
             (context, cancellationToken) => adapter.OrderFoodAsync(context.SeatNumber, context.Cart, cancellationToken)));
 
+        registry.Register(IntentType.BrowseMenu, new HermesSkillTool(
+            "openFoodSearch",
+            "지정한 키워드로 PC방 음식 검색 화면을 열어 사용자가 직접 고르게 합니다.",
+            (context, cancellationToken) => adapter.OpenFoodSearchAsync(
+                context.SeatNumber,
+                context.Route.Keyword ?? context.Route.UserText,
+                cancellationToken)));
+
         registry.Register(IntentType.CallStaff, new HermesSkillTool(
             "callStaff",
             "좌석으로 직원을 호출합니다.",

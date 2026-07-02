@@ -2,9 +2,11 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -37,6 +39,9 @@ public partial class MainWindow : Window
     private string _faceMode = "core";
     private string _personaMode = "standard";
     private string _agentMode = "hermes";
+    private HwndSource? _hotkeySource;
+    private bool _globalVoiceBusy;
+    private const int GlobalVoiceHotkeyId = 0xA11;
 
     public MainWindow()
     {
@@ -84,11 +89,108 @@ public partial class MainWindow : Window
         ShowDesktop();
     }
 
+    // Register a system-wide hotkey (Ctrl+Shift+Space) so voice can be triggered even while a game or
+    // another app is in the foreground. RegisterHotKey delivers WM_HOTKEY regardless of focus.
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        var handle = new WindowInteropHelper(this).Handle;
+        _hotkeySource = HwndSource.FromHwnd(handle);
+        _hotkeySource?.AddHook(HotkeyWndProc);
+        RegisterHotKey(handle, GlobalVoiceHotkeyId, ModControl | ModShift | ModNoRepeat, VkSpace);
+    }
+
+    private IntPtr HotkeyWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WmHotkey = 0x0312;
+        if (msg == WmHotkey && wParam.ToInt32() == GlobalVoiceHotkeyId)
+        {
+            handled = true;
+            _ = Dispatcher.InvokeAsync(async () => await GlobalVoiceListenAsync());
+        }
+
+        return IntPtr.Zero;
+    }
+
+    /// <summary>One-shot voice capture fired by the global hotkey; works while any app is focused.</summary>
+    private async Task GlobalVoiceListenAsync()
+    {
+        if (_globalVoiceBusy || _pttHold)
+        {
+            return;
+        }
+
+        _globalVoiceBusy = true;
+        try
+        {
+            if (!_voiceMode)
+            {
+                EnterVoice();
+            }
+
+            _voiceWindow?.SetListening();
+            VoiceTranscript.Text = "...";
+
+            string voiceText;
+            try
+            {
+                voiceText = await _voiceInput.ListenOnceAsync();
+            }
+            catch
+            {
+                voiceText = "";
+            }
+
+            if (string.IsNullOrWhiteSpace(voiceText))
+            {
+                const string retry = "음성을 인식하지 못했어요. 다시 말해 주세요.";
+                VoiceTranscript.Text = retry;
+                _voiceWindow?.SetTranscript(retry);
+                return;
+            }
+
+            VoiceTranscript.Text = $"\"{voiceText}\"";
+            _voiceWindow?.SetTranscript(voiceText);
+            await ExecuteCommandAsync(voiceText, spoken: true);
+        }
+        finally
+        {
+            _globalVoiceBusy = false;
+        }
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        try
+        {
+            var handle = new WindowInteropHelper(this).Handle;
+            if (handle != IntPtr.Zero)
+            {
+                UnregisterHotKey(handle, GlobalVoiceHotkeyId);
+            }
+
+            _hotkeySource?.RemoveHook(HotkeyWndProc);
+        }
+        catch
+        {
+            // Ignore hotkey cleanup failures on shutdown.
+        }
+
         _speech.Dispose();
         base.OnClosed(e);
     }
+
+    private const uint ModAlt = 0x0001;
+    private const uint ModControl = 0x0002;
+    private const uint ModShift = 0x0004;
+    private const uint ModNoRepeat = 0x4000;
+    private const uint VkSpace = 0x20;
+
+    [DllImport("user32.dll")]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
@@ -156,7 +258,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ExecuteCommandAsync(string text)
+    private async Task ExecuteCommandAsync(string text, bool spoken = false)
     {
         text = text.Trim();
         if (string.IsNullOrWhiteSpace(text))
@@ -170,7 +272,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var response = await _executor.ExecuteAsync(text);
+            var response = await _executor.ExecuteAsync(text, spoken);
             var assistantText = RenderResponse(response);
             SpeakAndToast(assistantText);
         }
@@ -221,8 +323,9 @@ public partial class MainWindow : Window
         [
             ("⚔ 롤 실행", "롤 실행해줘"),
             ("🎮 게임 추천", "할만한 게임 추천해줘"),
-            ("☕ 아아 주문", "아이스티 하나 추가해"),
-            ("🍜 라면 주문", "라면 시켜줘"),
+            ("☕ 아아 주문", "아아 주문해줘"),
+            ("🥤 콜라 주문", "콜라 주문해줘"),
+            ("🍜 라면 주문", "라면 주문해줘"),
             ("📦 주문 상태", "주문 상태 알려줘"),
             ("⏳ 남은 시간·요금", "남은 시간이랑 요금 알려줘"),
             ("▶ OTT 재생", "OTT 틀어줘"),
@@ -548,9 +651,18 @@ public partial class MainWindow : Window
         await EndPttAsync();
     }
 
+    // When a Korean IME is active, WPF reports e.Key == ImeProcessed and the real key sits in ImeProcessedKey.
+    // Resolve it so the hotkeys (Shift+V, Shift+G, Shift+A+I, Space) still fire in Korean input mode.
+    private static Key ResolveKey(System.Windows.Input.KeyEventArgs e)
+    {
+        return e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key;
+    }
+
     private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        var key = ResolveKey(e);
+
+        if (key == Key.Escape)
         {
             if (GamePanel.Visibility == Visibility.Visible)
             {
@@ -574,7 +686,7 @@ public partial class MainWindow : Window
             }
         }
 
-        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift && e.Key == Key.V)
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift && key == Key.V)
         {
             if (_voiceMode)
             {
@@ -589,33 +701,33 @@ public partial class MainWindow : Window
             return;
         }
 
-        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift && e.Key == Key.G)
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift && key == Key.G)
         {
             _ = RunScreenVisionAsync();
             e.Handled = true;
             return;
         }
 
-        if (_screen == "desktop" && e.Key == Key.Enter)
+        if (_screen == "desktop" && key == Key.Enter)
         {
             ShowChat();
             e.Handled = true;
             return;
         }
 
-        if (_voiceMode && e.Key == Key.Space)
+        if (_voiceMode && key == Key.Space)
         {
             StartPtt();
             e.Handled = true;
             return;
         }
 
-        TrackActivationSequence(e.Key);
+        TrackActivationSequence(key);
     }
 
     private async void Window_PreviewKeyUp(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (_voiceMode && e.Key == Key.Space)
+        if (_voiceMode && ResolveKey(e) == Key.Space)
         {
             await EndPttAsync();
             e.Handled = true;
@@ -714,8 +826,9 @@ public partial class MainWindow : Window
         _voiceMode = true;
         VoiceWidget.Visibility = Visibility.Collapsed;
         VoiceTranscript.Text = $"듣기 준비됨. SPACE 또는 버튼을 누르고 말하세요. ({_voiceEngineStatus})";
+        // Voice mode is a single always-on-top floating widget; the main window is NOT minimized so the
+        // hotkey keeps working (including the global hotkey) while other apps run.
         ShowVoiceWindow();
-        WindowState = WindowState.Minimized;
         ShowToast("음성 모드 ON");
     }
 
@@ -726,9 +839,6 @@ public partial class MainWindow : Window
         PttButton.Content = "누르는 동안 듣기 (SPACE)";
         VoiceWidget.Visibility = Visibility.Collapsed;
         HideVoiceWindow();
-        WindowState = WindowState.Maximized;
-        UpdateWindowChromeState();
-        Activate();
         ShowToast("음성 모드 OFF");
     }
 
@@ -743,6 +853,7 @@ public partial class MainWindow : Window
         }
 
         _voiceWindow.SetReady(_voiceEngineStatus);
+        _voiceWindow.Topmost = true; // always on top so it stays visible over games / other apps
         _voiceWindow.PositionBottomRight();
         _voiceWindow.Show();
         _voiceWindow.Activate();
@@ -803,7 +914,7 @@ public partial class MainWindow : Window
 
         VoiceTranscript.Text = $"\"{voiceText}\"";
         _voiceWindow?.SetTranscript(voiceText);
-        await ExecuteCommandAsync(voiceText);
+        await ExecuteCommandAsync(voiceText, spoken: true);
     }
 
     private async Task RunScreenVisionAsync()
@@ -1071,11 +1182,16 @@ public partial class MainWindow : Window
 
     private static (IVoiceInputService Service, string Status) CreateVoiceInput(string root)
     {
-        var modelPath = Path.Combine(root, "data", "models", "ggml-tiny.bin");
+        var modelsDir = Path.Combine(root, "data", "models");
+        // Prefer higher-accuracy Korean models when present, fall back to lighter ones.
+        var modelPath = new[] { "ggml-small.bin", "ggml-base.bin", "ggml-tiny.bin" }
+            .Select(name => Path.Combine(modelsDir, name))
+            .FirstOrDefault(File.Exists)
+            ?? Path.Combine(modelsDir, "ggml-tiny.bin");
         var primary = new WhisperVoiceInputService(modelPath);
         var fallback = new DemoVoiceInputService();
         var status = File.Exists(modelPath)
-            ? "WHISPER.NET LOCAL STT READY"
+            ? $"WHISPER.NET LOCAL STT READY ({Path.GetFileName(modelPath)})"
             : "DEMO STT FALLBACK";
 
         return (new FallbackVoiceInputService(primary, fallback), status);

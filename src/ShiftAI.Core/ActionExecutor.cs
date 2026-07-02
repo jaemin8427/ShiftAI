@@ -24,18 +24,18 @@ public sealed class ActionExecutor
         _actionLog = actionLog;
     }
 
-    public Task<AgentResponse> ExecuteAsync(string text, CancellationToken cancellationToken = default)
+    public Task<AgentResponse> ExecuteAsync(string text, bool spoken = false, CancellationToken cancellationToken = default)
     {
-        return ExecuteRouteAsync(_router.RouteAsync(text, _cart.Snapshot, _cart.AwaitingConfirmation, cancellationToken), cancellationToken);
+        return ExecuteRouteAsync(_router.RouteAsync(text, _cart.Snapshot, _cart.AwaitingConfirmation, cancellationToken), spoken, cancellationToken);
     }
 
     public Task<AgentResponse> SelectMenuItemAsync(MenuItem item, int quantity, string originalText, CancellationToken cancellationToken = default)
     {
         var route = Task.FromResult(new IntentRoute(IntentType.AddFood, originalText, Math.Max(1, quantity), MenuItem: item));
-        return ExecuteRouteAsync(route, cancellationToken);
+        return ExecuteRouteAsync(route, false, cancellationToken);
     }
 
-    private async Task<AgentResponse> ExecuteRouteAsync(Task<IntentRoute> routeTask, CancellationToken cancellationToken)
+    private async Task<AgentResponse> ExecuteRouteAsync(Task<IntentRoute> routeTask, bool spoken, CancellationToken cancellationToken)
     {
         var route = await routeTask;
         ToolResult? toolResult = null;
@@ -59,6 +59,21 @@ public sealed class ActionExecutor
             case IntentType.ClarifyMenuItem:
                 status = AgentStatus.NeedsClarification;
                 assistantText = "\uC5B4\uB5A4 \uBA54\uB274\uB97C \uC6D0\uD558\uC2DC\uB098\uC694? \uD6C4\uBCF4 \uC911 \uD558\uB098\uB97C \uC120\uD0DD\uD574 \uC8FC\uC138\uC694.";
+                break;
+
+            case IntentType.BrowseMenu:
+                if (spoken)
+                {
+                    // Voice mode: only exact items are auto-ordered. An ambiguous keyword must not act.
+                    status = AgentStatus.NeedsClarification;
+                    assistantText = $"'{route.Keyword}' \uC740(\uB294) \uC885\uB958\uAC00 \uC5EC\uB7EC \uAC1C\uB77C \uC74C\uC131\uC73C\uB85C\uB294 \uC8FC\uBB38\uD558\uC9C0 \uC54A\uC558\uC5B4. \uC815\uD655\uD55C \uC774\uB984\uC73C\uB85C \uB9D0\uD574\uC918. (\uC608: \uCF5C\uB77C, \uC544\uC774\uC2A4 \uC544\uBA54\uB9AC\uCE74\uB178)";
+                    break;
+                }
+
+                toolResult = await ExecuteToolAsync(route, cancellationToken);
+                status = toolResult.Status;
+                assistantText = toolResult.Message;
+                await WriteLogAsync(route, toolResult, cancellationToken);
                 break;
 
             case IntentType.PlaceOrder:

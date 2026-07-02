@@ -5,6 +5,7 @@ public enum IntentType
     Unknown,
     AddFood,
     PlaceOrder,
+    BrowseMenu,
     CallStaff,
     TroubleshootAudio,
     LaunchGame,
@@ -43,6 +44,7 @@ public sealed record IntentRoute(
     IReadOnlyList<MenuItem>? Candidates = null,
     string? GameName = null,
     string? Reason = null,
+    string? Keyword = null,
     bool UsedLlm = false);
 
 public sealed record ToolResult(
@@ -79,6 +81,7 @@ public interface IActionLog
 public interface IPcCafeAdapter
 {
     Task<ToolResult> OrderFoodAsync(int seatNumber, CartSnapshot cart, CancellationToken cancellationToken = default);
+    Task<ToolResult> OpenFoodSearchAsync(int seatNumber, string keyword, CancellationToken cancellationToken = default);
     Task<ToolResult> CallStaffAsync(int seatNumber, CancellationToken cancellationToken = default);
     Task<ToolResult> TroubleshootAudioAsync(int seatNumber, CancellationToken cancellationToken = default);
     Task<ToolResult> LaunchGameAsync(int seatNumber, string gameName, CancellationToken cancellationToken = default);

@@ -1,186 +1,195 @@
 # Shift AI
 
-Shift AI는 PC방 좌석용 로컬 WPF 프로토타입입니다. SAICO와는 별개입니다. SAICO가 게임 브리핑/승률 보조 앱이라면, Shift AI는 좌석에서 음식 주문, 직원 호출, 문제 해결 같은 일반 PC방 기능을 한국어 자연어로 처리하는 에이전트입니다.
+Shift AI는 PC방 좌석용 로컬 WPF 에이전트입니다. 좌석에서 **한국어 음성/텍스트로 음식 주문, 직원 호출, 문제 해결, 게임 실행** 등을 처리합니다. (게임 브리핑/승률 보조 앱 SAICO와는 별개입니다.)
 
-## 현재 범위
+핵심은 PC방 관리 클라이언트 **Geto(WmClt)** 의 음식 주문 화면을 실제로 구동하는 **`GetoNativeWmCltAdapter`** 입니다. `"콜라 시켜줘"` 한마디로 검색 → 담기 → 결제수단 선택 → 주문하기 → 완료 팝업 닫기까지 자동으로 수행합니다.
 
-- WPF / C# / .NET 8
-- Hermes Agent 기본 설정 로드
-- 로컬 intent router + 선택적 Gemini intent router
-- Geto Mock 백그라운드 장바구니 입력
-- 백그라운드 채널이 없을 때만 이미지 기반 손 제어 fallback
-- 실제 Geto, 실제 결제, 실제 음식 주문 연동 없음
-- 실행된 mock action은 JSONL 로그로 기록
+- WPF / C# / .NET 8 (`net8.0-windows10.0.19041.0`)
+- 로컬 Whisper STT (한국어) + Windows TTS 응답
+- 로컬 intent router (+ 선택적 Gemini router)
+- **실제 Geto 음식 주문 자동화** (관찰 기반, UI 자동화)
+- Windows 내장 OCR 기반 상품 매칭 + 장바구니 검증(오주문 방지)
+- 실행된 action은 JSONL 로그로 기록
 
-## 지원 명령
+> ⚠️ **주의:** 자동 주문을 켜면(`SHIFT_AI_GETO_AUTOSUBMIT`) 실제 주문이 전송됩니다. 반드시 매장/관리자 승인 하에 테스트하세요.
 
-- `라면 시켜줘`
-- `콜라 하나 추가해`
-- `직원 불러줘`
-- `소리 안 나와`
-- `롤 켜줘`
-- `시간 얼마나 남았어?`
-- `취소`
-- `주문해`
+---
 
-`라면 시켜줘`는 바로 주문하지 않고 후보 메뉴를 먼저 보여줍니다. `콜라 하나 추가해`처럼 명확한 메뉴는 Shift AI가 “알겠어, 시킬게!!”라고 응답하고 Geto Mock 장바구니에 백그라운드로 담습니다.
+## Geto 실연동 (핵심)
 
-## 프로젝트 구조
+### 관찰된 Geto 주문 화면 구조
+사내 앱이 아닌 Geto를 **관찰/진단**해서 파악한 구조입니다.
 
-- `src/ShiftAI.App` - Shift AI WPF 앱, Gemini router, mock adapter, action log
-- `src/ShiftAI.Core` - intent router, menu matcher, cart, action executor, shared types
-- `src/ShiftAI.GetoMock` - 게토와 비슷한 로컬 WPF 샘플 UI
-- `tests/ShiftAI.Tests` - intent router/menu matcher 기본 테스트
-- `tests/ShiftAI.HandSmoke` - Shift AI 실행 경로가 Geto Mock 백그라운드 채널로 주문을 넣는 smoke 테스트
-- `data/menu.sample.json` - 샘플 메뉴
-- `data/hermes.agent.json` - Hermes Agent 기본 설정
-- `logs/actions.jsonl` - 실행 action 로그
+- 음식 주문 UI = `WmClt.exe` 내부의 **네이티브 Win32 창**(클래스 `#32770`, ~1641x920).
+- 결제수단·금액·카테고리·`상품명 검색` = **네이티브 컨트롤**(UIA로 이름/위치는 읽히지만 InvokePattern은 없음 → 실제 클릭 필요).
+- **상품 그리드·장바구니·주문하기 = 인프로세스 Chromium(CEF) 웹뷰** (`Chrome_RenderWidgetHostHWND`).
+- 진입 버튼(`먹거리 주문`/`음식 주문`, 버전마다 상이)은 Geto 메인 창의 네이티브 버튼.
+- **로컬 IPC 없음**: 네임드 파이프·CDP(원격 디버깅) 포트·CEF 접근성 트리 모두 미노출. 주문 트래픽은 암호화된 네이티브 소켓으로 추정.
 
-## 실행
+### 동작 방식 — "UIA 위치 탐색 + 실제 입력(포그라운드 플래시)"
+순수 UI Automation이 아니라, **UIA/OCR/색으로 위치를 찾고 실제 마우스·키보드 입력으로 조작**하는 하이브리드입니다.
 
-내일 바로 확인할 때는 v1 실행 스크립트를 쓰면 됩니다. Geto Mock을 먼저 띄운 뒤 Shift AI를 실행합니다.
-
-```powershell
-.\scripts\run-v1.ps1
+```
+"콜라 시켜줘"
+ → (주문창 없으면) 메인 창의 '먹거리 주문' 클릭해 자동으로 열기
+ → 상품명 검색에 "코카콜라" 입력(네이티브 Edit)
+ → 그리드 OCR로 이름 매칭되는 카드 클릭 → '담기' 클릭
+ → 장바구니 OCR 검증(이름 일치?) — 다르면 주문 중단
+ → 결제수단(신용카드) 선택
+ → '주문하기'(파란 버튼 색 탐지) 클릭
+ → "주문이 완료되었습니다" 팝업 → '상품구매 종료하기' 자동 클릭
+ → 원래 포그라운드(게임) 창으로 복귀
 ```
 
-Shift AI에서 `콜라 하나 추가해`를 입력하거나 음성 모드에서 말하면 Geto Mock 장바구니에 백그라운드로 담깁니다.
+| 단계 | 위치 탐색 | 조작 |
+|---|---|---|
+| 먹거리 주문 열기 | UIA 이름(`주문`+`먹거리/음식`) | 실제 클릭 |
+| 검색어 입력 | UIA 이름(`검색`) | 클릭 + 키보드 입력 |
+| 상품 카드/담기 | **Windows OCR**(이름 매칭) | 실제 클릭 |
+| 결제수단 | UIA 이름 → 좌표 | 실제 클릭 |
+| 주문하기 | **파란 버튼 색 탐지** | 실제 클릭 |
+| 상품구매 종료하기 | 파란 `추가구매하기` 오른쪽 계산 | 실제 클릭 |
+
+### 오주문 방지 안전장치
+- **OCR 이름 매칭**: 좌표 고정이 아니라 화면에서 상품명을 읽어 매칭. `콜라` → 정확일치 우선, 없으면 최단 이름 → `코카콜라`(제로 아님) 선택.
+- **장바구니 검증**: 담은 뒤 장바구니를 OCR해서 기대한 메뉴명이 있는지 확인, 다르면 **주문을 전송하지 않고 중단**.
+- OCR 미가용/미매칭 시 첫 카드 좌표로 폴백하되, 검증이 여전히 오주문을 차단.
+
+### 한계 (백그라운드 불가)
+- **완전 백그라운드 주문은 불가**합니다. 상품 카드/담기/주문하기가 CEF 웹뷰 안에 있어 합성 메시지(PostMessage)에 반응하지 않고, CDP·접근성 경로도 막혀 있어 **실제 입력(포그라운드)** 이 필요합니다.
+- 네이티브 단계(카테고리/검색)는 백그라운드 클릭이 되지만, 결정적 단계에서 **창이 1~3초 앞으로 나오는 "포그라운드 플래시"** 가 현실적 최선입니다.
+- 완전 백그라운드가 필요하면 Geto(모빌넷)의 공식 연동 API가 정답입니다.
+
+---
+
+## 음성 vs 텍스트 & 라우팅
+
+- **정확한 아이템**(콜라→코카콜라, 아아→아이스아메리카노 등) → 바로 주문.
+- **카테고리 키워드**(라면, 커피, 치킨, 떡볶이 …) → 그 키워드로 **검색 화면만 열고 정지**(직접 선택).
+- **음성 모드**: 정확한 아이템만 주문. 모호한 키워드는 주문하지 않고 되물음(오인식 방지).
+- **텍스트 모드**: 정확한 아이템 없으면 **검색 화면**을 열어 선택하게 함.
+  - 예) `라면 주문해줘` → 라면 검색화면, `커피 주문해줘` → 커피 검색화면.
+
+라우팅은 `IntentRouter`(로컬)에서 처리합니다. 음식 감지를 결제확정(`주문해`) 체크보다 먼저 수행해, `라면 주문해줘`가 결제확정으로 오인되지 않습니다.
+
+---
+
+## 핫키
+
+```text
+SHIFT + V            음성 모드 열기/닫기 (앱 포커스 시)
+SPACE                음성 모드에서 누르는 동안 듣기 (PTT)
+SHIFT + A + I        첫 페이지에서 채팅 진입 (Enter 동작)
+SHIFT + G            화면 판독(Gemini, 키 필요)
+Ctrl + Shift + Space 전역 음성 트리거 — 다른 앱/게임이 앞에 있어도 작동
+```
+
+- **한글 IME 상태에서도** 핫키가 동작합니다(`ImeProcessedKey`로 실제 키 해석).
+- 음성 모드는 **최소화 없이 항상 위(topmost)** 로 뜨는 단일 플로팅 위젯입니다.
+- `Ctrl+Shift+Space`는 `RegisterHotKey`로 등록된 **시스템 전역 핫키**라 게임 중에도 눌리면 음성 듣기가 시작됩니다. (전역 핫키는 모디파이어+단일키만 가능하여 A+I 조합은 로컬 전용입니다.)
+
+---
+
+## 환경 변수 / 토글
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `SHIFT_AI_GETO_AUTOSUBMIT` | ON | `0`이면 `주문하기` 직전에 정지(안전 모드, 실주문 안 감) |
+| `SHIFT_AI_GETO_PAYMENT` | `신용카드` | 결제수단 라벨 (`현금`/`게토앱결제` 등) |
+| `GEMINI_API_KEY` | 없음 | 없으면 로컬 router로 동작 |
+| `SHIFT_AI_LOL_PATH` | 자동탐색 | LeagueClient/RiotClient 경로 |
+
+첫 검증은 안전 모드 권장:
 
 ```powershell
-dotnet restore ShiftAI.sln
+$env:SHIFT_AI_GETO_AUTOSUBMIT="0"
 dotnet run --project src\ShiftAI.App\ShiftAI.App.csproj
 ```
 
-또는:
+---
 
-```powershell
-.\scripts\run.ps1
-```
+## 음성(STT)
 
-## Geto Mock 실행
-
-```powershell
-dotnet run --project src\ShiftAI.GetoMock\ShiftAI.GetoMock.csproj
-```
-
-Shift AI가 Geto Mock을 찾으면 `NamedPipe` 백그라운드 채널로 장바구니를 갱신합니다. 이 방식은 마우스 포커스를 게임에서 뺏지 않는 프로토타입 경로입니다.
-
-실제 Geto에서는 이 pipe가 없으므로, 같은 수준의 백그라운드 주문을 하려면 실제 Geto의 로컬 IPC/API/WebView 요청 구조를 별도로 찾아야 합니다. 현재 이미지 클릭 자동화는 그 채널이 없을 때를 위한 fallback입니다.
-
-## 테스트
-
-```powershell
-dotnet run --project tests\ShiftAI.Tests\ShiftAI.Tests.csproj
-```
-
-Geto Mock을 먼저 실행한 뒤 smoke 테스트:
-
-```powershell
-dotnet run --project tests\ShiftAI.HandSmoke\ShiftAI.HandSmoke.csproj
-```
-
-성공하면 `Status=Completed`, `알겠어, 시킬게!!`, `백그라운드로 담았습니다`가 출력됩니다.
-
-v1 전체 확인:
-
-```powershell
-.\scripts\check-v1.ps1
-```
-
-## 빌드
-
-```powershell
-dotnet build ShiftAI.sln
-```
-
-또는:
-
-```powershell
-.\scripts\build.ps1
-```
-
-## Windows 배포 빌드
-
-```powershell
-.\scripts\publish-win-x64.ps1
-```
-
-Shift AI 실행 파일:
+로컬 Whisper.net(한국어)로 4초 녹음 후 전사합니다. 모델 파일을 `data/models`에 두면 자동으로 사용합니다(우선순위 `ggml-small` > `ggml-base` > `ggml-tiny`).
 
 ```text
-artifacts\publish\win-x64\ShiftAI.App.exe
+data\models\ggml-small.bin   # 권장(한국어 정확도)
 ```
 
-Geto Mock 디버그 실행 파일:
-
-```text
-src\ShiftAI.GetoMock\bin\Debug\net8.0-windows\ShiftAI.GetoMock.exe
-```
-
-Shift AI와 Geto Mock을 둘 다 배포 폴더로 만들려면:
+모델은 whisper.cpp 배포처에서 받습니다.
 
 ```powershell
-.\scripts\publish-v1-win-x64.ps1
+Invoke-WebRequest "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin?download=true" `
+  -OutFile "data\models\ggml-small.bin"
 ```
 
-v1 배포 실행 파일:
+모델이 없으면 데모 STT로 폴백(빈 결과)합니다. 앱 하단/위젯에 `WHISPER.NET LOCAL STT READY (ggml-small.bin)`로 상태가 표시됩니다.
+
+> Windows OCR(상품 매칭/검증)은 한국어 OCR 언어팩이 필요합니다(한국어 Windows에는 기본 포함).
+
+---
+
+## 빌드 / 실행
+
+```powershell
+dotnet restore ShiftAI.sln
+dotnet build   src\ShiftAI.App\ShiftAI.App.csproj -c Debug
+dotnet run     --project src\ShiftAI.App\ShiftAI.App.csproj
+```
+
+- 대상 프레임워크: `net8.0-windows10.0.19041.0` (Windows.Media.Ocr 사용).
+- 실행 파일: `src\ShiftAI.App\bin\Debug\net8.0-windows10.0.19041.0\ShiftAI.App.exe`
+
+---
+
+## 프로젝트 구조
 
 ```text
-artifacts\publish\win-x64\ShiftAI.App\ShiftAI.App.exe
-artifacts\publish\win-x64\ShiftAI.GetoMock\ShiftAI.GetoMock.exe
+src/ShiftAI.App
+  GetoNativeWmCltAdapter.cs   실제 Geto/WmClt 주문 자동화 (열기·검색·OCR선택·담기·결제·주문·팝업닫기)
+  GetoOcr.cs                  Windows OCR 래퍼(상품 매칭 + 장바구니 검증)
+  GetoOrderAdapters.cs        네이티브/UIA/비전 fallback 어댑터 + 데스크톱 입력 유틸
+  MockPcCafeAdapter.cs        어댑터 체인 + 음식 검색화면 열기(OpenFoodSearch)
+  WhisperVoiceInputService.cs 로컬 STT (녹음→전사)
+  MainWindow.xaml.cs          UI, 핫키(IME/전역), 음성 모드
+src/ShiftAI.Core
+  IntentRouter.cs             정확 아이템/카테고리 키워드 라우팅
+  ActionExecutor.cs           음성/텍스트 모드, intent 실행
+  HermesSkillToolRegistry.cs  orderFood / openFoodSearch / callStaff ...
+  MenuMatcher.cs, Cart.cs, Types.cs
+src/ShiftAI.GetoProbe         Geto 진단 프로브(프로세스/창/TCP/WebView/네이티브 표면)
+src/ShiftAI.GetoMock          로컬 목업 UI(파이프 기반, 오프라인 개발용)
+data/menu.sample.json         샘플 메뉴
 ```
 
-## Gemini 키
+## Hermes Skill Tools
 
-Shift AI는 아래 순서로 Gemini 키를 찾습니다.
+```text
+orderFood        장바구니를 Geto에 주문
+openFoodSearch   키워드로 검색 화면 열기(직접 선택)
+callStaff        직원 호출
+troubleshootAudio 오디오 점검
+launchGame       게임 실행
+getRemainingTime 남은 시간
+cancelCurrentAction 취소
+```
+
+## Gemini 키(선택)
 
 1. `GEMINI_API_KEY` 환경 변수
 2. `%USERPROFILE%\Documents\shiftaikey.txt`
 
-키가 없거나 Gemini 요청이 실패하면 로컬 router로 fallback합니다. 키는 action log에 기록하지 않습니다.
+키가 없거나 실패하면 로컬 router로 폴백합니다. 키는 로그에 기록하지 않습니다.
 
-## Shift AI v1 음성 모드
+---
 
-v1은 별도 플로팅 음성 창에서 Push-to-talk 방식으로 동작합니다. 게임 중에는 메인 화면 안쪽 위젯이 아니라 작은 always-on-top 창을 띄우는 구조입니다.
+## 다음 단계
 
-```text
-SHIFT + V      음성 위젯 열기/닫기
-SPACE          누르는 동안 듣기
-음성 버튼       마우스로 누르는 동안 듣기
-```
-
-Whisper 모델이 있으면 실제 마이크 녹음 후 로컬 STT를 시도합니다.
-
-```text
-data\models\ggml-tiny.bin
-```
-
-모델이 없거나 STT가 실패하면 데모 명령인 `콜라 하나 추가해`로 fallback합니다. 모델은 아래 스크립트로 받을 수 있습니다.
-
-```powershell
-.\scripts\download-whisper-tiny.ps1
-```
-
-앱 하단과 음성 위젯에는 현재 음성 엔진 상태가 표시됩니다. `WHISPER.NET LOCAL STT READY`면 모델 파일을 찾은 상태이고, `DEMO STT FALLBACK`이면 음성 실패 시 데모 명령으로 처리하는 상태입니다. 응답은 Windows TTS로 짧게 말합니다. 현재 v1의 목표는 음식 주문 음성 플로우이며, OP.GG/LoL 데이터 연동은 음식 주문 안정화 이후 단계로 미룹니다.
-
-## Hermes Skill Tools
-
-내부 PC방 기능은 `HermesSkillToolRegistry`에 도구로 등록됩니다.
-
-```text
-orderFood
-callStaff
-troubleshootAudio
-launchGame
-getRemainingTime
-cancelCurrentAction
-```
-
-이 구조 덕분에 나중에 OP.GG MCP, 실제 Geto adapter, 리마인더 tool을 같은 방식으로 추가할 수 있습니다.
+- 상품 카드/주문하기 좌표를 색·OCR 매칭으로 완전 대체(해상도/레이아웃 변화 견고화).
+- 진입 버튼 라벨 변형(버전별) 케이스 확대.
+- 완전 백그라운드가 필요하면 Geto 공식 연동 API 협의.
 
 ## GitHub
-
-대상 저장소:
 
 ```text
 https://github.com/jaemin8427/ShiftAI
