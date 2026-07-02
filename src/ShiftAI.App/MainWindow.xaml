@@ -340,9 +340,10 @@
                 <TextBlock Text="GAMING ZONE · SEAT 38" Foreground="{StaticResource DimBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
             </StackPanel>
 
-            <UniformGrid Columns="1" Rows="4" Width="96" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="40,120,0,0">
+            <UniformGrid Columns="1" Rows="5" Width="96" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="40,120,0,0">
                 <Button Content="GAME" Height="68" Click="OpenGameButton_Click"/>
                 <Button Content="VOICE" Height="68" Click="OpenVoiceButton_Click"/>
+                <Button Content="VISION" Height="68" Click="ScreenVisionButton_Click"/>
                 <Button Content="CHAT" Height="68" Click="OpenChatButton_Click"/>
                 <Button Content="PRINT" Height="68" Click="DesktopToastButton_Click"/>
             </UniformGrid>
@@ -661,6 +662,7 @@
                         <DockPanel LastChildFill="True">
                             <TextBlock Text="SHIFT&gt;" DockPanel.Dock="Left" Foreground="{StaticResource MagentaBrush}" FontSize="15" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <Button x:Name="SendButton" DockPanel.Dock="Right" Content="RUN" Click="SendButton_Click" MinWidth="72" Height="32" Padding="12,4" Margin="10,0,0,0"/>
+                            <Button Content="VISION" DockPanel.Dock="Right" Click="ScreenVisionButton_Click" MinWidth="78" Height="32" Padding="12,4" Margin="10,0,0,0"/>
                             <TextBox x:Name="CommandInput" KeyDown="CommandInput_KeyDown" VerticalContentAlignment="Center" Height="28"/>
                         </DockPanel>
                     </Border>
@@ -722,6 +724,7 @@
                     </DockPanel>
                     <ListBox x:Name="GameConversationList" Grid.Row="1" Padding="14" FontSize="13"/>
                     <WrapPanel Grid.Row="2" Margin="12,0,12,8">
+                        <Button Content="VISION" Click="ScreenVisionButton_Click"/>
                         <Button Content="콜라 하나" Click="GameQuickCommandButton_Click" CommandParameter="콜라 하나 추가해"/>
                         <Button Content="라면" Click="GameQuickCommandButton_Click" CommandParameter="라면 시켜줘"/>
                         <Button Content="직원" Click="GameQuickCommandButton_Click" CommandParameter="직원 불러줘"/>

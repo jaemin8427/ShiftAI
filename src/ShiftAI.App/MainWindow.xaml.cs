@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private readonly ActionExecutor _executor;
     private readonly IVoiceInputService _voiceInput;
     private readonly string _voiceEngineStatus;
+    private readonly GeminiScreenVisionCommandService? _screenVision;
     private readonly SpeechFeedbackService _speech = new();
     private readonly ObservableCollection<string> _conversation = [];
     private readonly ObservableCollection<string> _gameConversation = [];
@@ -32,6 +33,7 @@ public partial class MainWindow : Window
     private bool _voiceMode;
     private bool _pttHold;
     private bool _soundEnabled;
+    private Task<string>? _voiceListenTask;
     private string _faceMode = "core";
     private string _personaMode = "standard";
     private string _agentMode = "hermes";
@@ -49,6 +51,14 @@ public partial class MainWindow : Window
         var matcher = new MenuMatcher(menu);
         var localRouter = new IntentRouter(matcher);
         var geminiKey = GeminiKeyProvider.GetApiKey();
+        _screenVision = string.IsNullOrWhiteSpace(geminiKey)
+            ? null
+            : new GeminiScreenVisionCommandService(
+                new HttpClient { Timeout = TimeSpan.FromSeconds(12) },
+                geminiKey,
+                settings.Model,
+                root,
+                menu);
         IIntentRouter? geminiRouter = string.IsNullOrWhiteSpace(geminiKey)
             ? null
             : new GeminiIntentRouter(
@@ -461,6 +471,11 @@ public partial class MainWindow : Window
         SpeakAndToast("프린트, OTT, EDU 기능은 다음 어댑터에서 연결할 예정입니다.");
     }
 
+    private async void ScreenVisionButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunScreenVisionAsync();
+    }
+
     private void OpenGamePanelButton_Click(object sender, RoutedEventArgs e)
     {
         OpenGamePanel();
@@ -570,6 +585,13 @@ public partial class MainWindow : Window
                 EnterVoice();
             }
 
+            e.Handled = true;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift && e.Key == Key.G)
+        {
+            _ = RunScreenVisionAsync();
             e.Handled = true;
             return;
         }
@@ -742,6 +764,7 @@ public partial class MainWindow : Window
         PttButton.Content = "듣는 중...";
         VoiceTranscript.Text = "...";
         _voiceWindow?.SetListening();
+        _voiceListenTask = _voiceInput.ListenOnceAsync();
     }
 
     private async Task EndPttAsync()
@@ -753,7 +776,22 @@ public partial class MainWindow : Window
 
         _pttHold = false;
         PttButton.Content = "누르는 동안 듣기 (SPACE)";
-        var voiceText = await _voiceInput.ListenOnceAsync();
+        string voiceText;
+        try
+        {
+            voiceText = _voiceListenTask is null
+                ? await _voiceInput.ListenOnceAsync()
+                : await _voiceListenTask;
+        }
+        catch
+        {
+            voiceText = "";
+        }
+        finally
+        {
+            _voiceListenTask = null;
+        }
+
         if (string.IsNullOrWhiteSpace(voiceText))
         {
             const string retryMessage = "음성을 인식하지 못했어요. 다시 말해 주세요.";
@@ -766,6 +804,77 @@ public partial class MainWindow : Window
         VoiceTranscript.Text = $"\"{voiceText}\"";
         _voiceWindow?.SetTranscript(voiceText);
         await ExecuteCommandAsync(voiceText);
+    }
+
+    private async Task RunScreenVisionAsync()
+    {
+        if (_voiceMode)
+        {
+            ShowToast("보이스 모드에서는 화면 판독을 사용할 수 없습니다.");
+            return;
+        }
+
+        if (_screenVision is null)
+        {
+            const string message = "화면 판독에는 GEMINI_API_KEY 또는 Documents\\shiftaikey.txt가 필요합니다.";
+            AddAssistant(message);
+            SpeakAndToast(message);
+            return;
+        }
+
+        var previousState = WindowState;
+        var previousScreen = _screen;
+        ShowToast("화면을 캡처해서 읽는 중...");
+
+        try
+        {
+            WindowState = WindowState.Minimized;
+            await Task.Delay(450);
+            var result = await _screenVision.ReadCommandAsync();
+
+            WindowState = previousState;
+            UpdateWindowChromeState();
+            Activate();
+
+            if (!result.Success)
+            {
+                var message = $"화면 판독 결과: {result.Reason}";
+                if (previousScreen == "game")
+                {
+                    _gameConversation.Add($"Shift AI  {message}");
+                    GameConversationList.ScrollIntoView(_gameConversation[^1]);
+                }
+                else
+                {
+                    AddAssistant(message);
+                }
+
+                SpeakAndToast(message);
+                return;
+            }
+
+            var notice = $"화면 판독 명령: {result.Command}";
+            if (previousScreen == "game")
+            {
+                _gameConversation.Add($"Shift AI  {notice}");
+                GameConversationList.ScrollIntoView(_gameConversation[^1]);
+                await ExecuteGameCommandAsync(result.Command);
+            }
+            else
+            {
+                AddAssistant(notice);
+                await ExecuteCommandAsync(result.Command);
+            }
+        }
+        catch (Exception ex)
+        {
+            WindowState = previousState;
+            UpdateWindowChromeState();
+            Activate();
+            var message = $"화면 판독 중 오류가 발생했습니다. {ex.Message}";
+            AddAssistant(message);
+            SpeakAndToast(message);
+        }
     }
 
     private void AddUser(string text)

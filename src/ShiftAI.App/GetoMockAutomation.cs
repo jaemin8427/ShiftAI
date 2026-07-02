@@ -586,4 +586,4 @@ public sealed class GetoMockAutomation
     }
 }
 
-public sealed record GetoAutomationResult(bool Success, string Message);
+public sealed record GetoAutomationResult(bool Success, string Message, object? Diagnostics = null);
